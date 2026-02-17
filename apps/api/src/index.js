@@ -1,5 +1,6 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const profileContext = require("./middlewares/profileContext");
 const auth = require("./middlewares/auth");
 const prisma = require("./prisma");
 const express = require("express");
@@ -164,7 +165,12 @@ app.get("/profiles", auth, async (req, res) =>  {
   }
     
 } )
-
+app.get("/profile/active", auth, profileContext, (req, res) => {
+  return res.json({
+    profileId: req.profileId.toString(),
+    profile: req.profile,
+  });
+});
 
 
 /*app.get("/users", async (req, res) => {
