@@ -106,7 +106,16 @@ app.post("/profiles", auth, async (req, res) => {
     if (!name || !name.trim()) {
       return res.status(400).json({ error: "name es requerido" });
     }
-
+    const cleanName = name.trim();
+    const existingprofile = await prisma.profile.findFirst({ // me fijo que exista un perfil en la misma cuenta (con userID) y que se llame igual
+        where: {
+            name: cleanName,
+            userId: req.userId,
+        },
+    });
+    if (existingprofile){
+        return res.status(400).json({ error: `el perfil ${cleanName} ya existe` });
+    }
     const profile = await prisma.profile.create({
       data: {
         name: name.trim(),
