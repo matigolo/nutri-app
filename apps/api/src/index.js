@@ -135,6 +135,36 @@ app.post("/profiles", auth, async (req, res) => {
   }
 });
 
+app.get("/profiles", auth, async (req, res) =>  {
+  try{
+    const profiles = await prisma.profile.findMany({
+        where: {
+            userId: req.userId,
+        },
+        orderBy: { id: "asc" },
+        select: {
+            id: true,
+            userId: true,
+            name: true,
+            avatarUrl:true,
+            createdAt: true,
+        },
+    });
+    return res.json({
+        profiles: profiles.map((p) => ({
+        id: p.id.toString(),
+        userId: p.userId.toString(),
+        name: p.name,
+        avatarUrl: p.avatarUrl,
+        createdAt: p.createdAt,})),
+    })}
+    catch (err) {
+    console.error("ERROR GET /profiles:", err);
+    return res.status(500).json({ error: err.message });
+  }
+    
+} )
+
 
 
 /*app.get("/users", async (req, res) => {
