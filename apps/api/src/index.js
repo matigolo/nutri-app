@@ -1,5 +1,6 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const auth = require("./middlewares/auth");
 const prisma = require("./prisma");
 const express = require("express");
 const cors = require("cors");
@@ -13,7 +14,7 @@ app.use(express.json());
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
-
+//llamada para registrar un nuevo usuario, recibe email, password y opcionalmente el nombre del primer perfil
 app.post("/auth/register", async (req, res) => {
   try {
     const { email, password, firstProfileName } = req.body;
@@ -50,7 +51,7 @@ app.post("/auth/register", async (req, res) => {
     return res.status(500).json({ error: "error interno" });
   }
 });
-
+//llamada para loguear un usuario existente, devuelve un token JWT si las credenciales son correctas
 app.post("/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -70,10 +71,10 @@ app.post("/auth/login", async (req, res) => {
     if (!ok) return res.status(401).json({ error: "credenciales inválidas" });
 
     const token = jwt.sign(
-      { userId: user.id.toString?.() ?? user.id },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    { userId: user.id.toString() },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" });
+
 
     return res.json({
       token,
@@ -91,6 +92,40 @@ app.post("/auth/login", async (req, res) => {
     return res.status(500).json({ error: "error interno" });
   }
 });
+//ejemplo de ruta protegida que devuelve los datos del usuario logueado, se accede a través de req.user gracias al middleware auth
+app.get("/me", auth, async (req, res) => {
+  // req.user viene del token (por ejemplo: { userId: 1, email: "...", iat, exp })
+  return res.json({ user: req.user });
+});
+
+
+app.post("/profiles", auth, async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "name es requerido" });
+    }
+
+    const profile = await prisma.profile.create({
+      data: {
+        name: name.trim(),
+        userId: req.userId,
+      },
+    });
+
+    return res.status(201).json({
+      id: profile.id.toString(),
+      userId: profile.userId.toString(),
+      name: profile.name,
+      createdAt: profile.createdAt,
+    });
+  } catch (err) {
+    console.error("ERROR /profiles:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 
 
 /*app.get("/users", async (req, res) => {
