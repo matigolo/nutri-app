@@ -276,7 +276,72 @@ app.get("/meals", auth, profileContext, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+app.get("/foods/search", auth, profileContext, async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    if (!q) return res.status(400).json({ error: "q es requerido" });
 
+    const apiKey = process.env.USDA_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "Falta USDA_API_KEY en .env" });
+
+    const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${apiKey}`;
+
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: q,
+        pageSize: 10,
+      }),
+    });
+
+    const data = await r.json();
+
+    if (!r.ok) {
+      // ✅ esto te muestra el error real de USDA (ej: api_key inválida)
+      return res.status(r.status).json({ error: "USDA error", details: data });
+    }
+
+    const foods = (data.foods || []).map((f) => {
+      const nutrients = new Map(
+        (f.foodNutrients || []).map((n) => [n.nutrientName, n.value])
+      );
+
+      return {
+        fdcId: f.fdcId,
+        description: f.description,
+        brandName: f.brandName ?? null,
+        calories: nutrients.get("Energy") ?? null,
+        protein: nutrients.get("Protein") ?? null,
+        carbs: nutrients.get("Carbohydrate, by difference") ?? null,
+        fat: nutrients.get("Total lipid (fat)") ?? null,
+      };
+    });
+
+    return res.json({ foods });
+  } catch (err) {
+    console.error("ERROR /foods/search:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+app.get("/foods/:fdcId", auth, profileContext, async (req, res) => {
+  try {
+    const fdcId = Number(req.params.fdcId);
+    if (!fdcId) return res.status(400).json({ error: "fdcId inválido" });
+
+    const url = `https://api.nal.usda.gov/fdc/v1/food/${fdcId}`;
+
+    const r = await fetch(url);
+    const data = await r.json();
+
+    return res.json({ food: data });
+  } catch (err) {
+    console.error("ERROR /foods/:fdcId:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 
 /*app.get("/users", async (req, res) => {
