@@ -172,6 +172,112 @@ app.get("/profile/active", auth, profileContext, (req, res) => {
   });
 });
 
+app.post("/meals", auth, profileContext, async (req, res) => {
+  try {
+    const { mealType, mealDate, notes, items } = req.body;
+
+    if (!mealType || !mealType.trim()) {
+      return res.status(400).json({ error: "mealType es requerido" });
+    }
+
+    const date = mealDate ? new Date(mealDate) : new Date();
+    if (Number.isNaN(date.getTime())) {
+      return res.status(400).json({ error: "mealDate inválido" });
+    }
+
+    const safeItems = Array.isArray(items) ? items : [];
+
+    const meal = await prisma.meal.create({
+      data: {
+        profileId: req.profileId,
+        mealType: mealType.trim(),
+        mealDate: date,
+        notes: notes?.trim() || null,
+
+        ...(safeItems.length > 0
+          ? {
+              items: {
+                create: safeItems.map((it) => ({
+                  name: String(it.name || "").trim(),
+                  // Decimals: si te llega string o number, Prisma suele bancar; si falla, mandalo string.
+                  quantity: it.quantity ?? null,
+                  unit: it.unit ?? null,
+                  calories: it.calories ?? null,
+                  protein: it.protein ?? null,
+                  carbs: it.carbs ?? null,
+                  fat: it.fat ?? null,
+                })),
+              },
+            }
+          : {}),
+      },
+      include: { items: true },
+    });
+
+    return res.status(201).json({
+      id: meal.id.toString(),
+      profileId: meal.profileId.toString(),
+      mealType: meal.mealType,
+      mealDate: meal.mealDate,
+      notes: meal.notes,
+      createdAt: meal.createdAt,
+      items: meal.items.map((i) => ({
+        id: i.id.toString(),
+        mealId: i.mealId.toString(),
+        name: i.name,
+        quantity: i.quantity, // Decimal -> puede salir como string/Decimal depending
+        unit: i.unit,
+        calories: i.calories,
+        protein: i.protein,
+        carbs: i.carbs,
+        fat: i.fat,
+        createdAt: i.createdAt,
+      })),
+    });
+  } catch (err) {
+    console.error("ERROR POST /meals:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+app.get("/meals", auth, profileContext, async (req, res) => {
+  try {
+    const meals = await prisma.meal.findMany({
+      where: { profileId: req.profileId },
+      orderBy: { mealDate: "desc" },
+      include: { items: true },
+    });
+
+    return res.json({
+      meals: meals.map((m) => ({
+        id: m.id.toString(),
+        profileId: m.profileId.toString(),
+        mealType: m.mealType,
+        mealDate: m.mealDate,
+        notes: m.notes,
+        createdAt: m.createdAt,
+        items: m.items.map((i) => ({
+          id: i.id.toString(),
+          mealId: i.mealId.toString(),
+          name: i.name,
+          quantity: i.quantity,
+          unit: i.unit,
+          calories: i.calories,
+          protein: i.protein,
+          carbs: i.carbs,
+          fat: i.fat,
+          createdAt: i.createdAt,
+        })),
+      })),
+    });
+  } catch (err) {
+    console.error("ERROR GET /meals:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 /*app.get("/users", async (req, res) => {
   const users = await prisma.user.findMany();
