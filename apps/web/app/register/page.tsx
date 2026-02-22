@@ -20,29 +20,50 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError("")
+  e.preventDefault()
+  setError("")
 
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setError("Completa todos los campos")
-      return
-    }
-    if (password !== confirmPassword) {
-      setError("Las contrasenas no coinciden")
-      return
-    }
-    if (password.length < 6) {
-      setError("La contrasena debe tener al menos 6 caracteres")
-      return
-    }
-
-    setLoading(true)
-    // TODO: Connect to backend POST /api/auth/register
-    await new Promise((r) => setTimeout(r, 800))
-    setIsLoggedIn(true)
-    setLoading(false)
-    router.push("/profiles")
+  if (!name.trim() || !email.trim() || !password.trim()) {
+    setError("Completa todos los campos")
+    return
   }
+  if (password !== confirmPassword) {
+    setError("Las contraseñas no coinciden")
+    return
+  }
+  if (password.length < 6) {
+    setError("La contraseña debe tener al menos 6 caracteres")
+    return
+  }
+
+  setLoading(true)
+  try {
+    const res = await fetch("http://localhost:4000/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: email.trim(),
+        password: password.trim(),
+        firstProfileName: name.trim(),
+      }),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      setError(data?.error ?? "Error al crear cuenta") // 👈 tu backend usa "error", no "message"
+      setLoading(false)
+      return
+    }
+
+    setLoading(false)
+    router.push("/login")
+  } catch (err) {
+    console.error(err)
+    setError("No se pudo conectar al servidor")
+    setLoading(false)
+  }
+}
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-background px-6">
