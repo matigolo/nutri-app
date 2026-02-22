@@ -18,21 +18,54 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError("")
+  e.preventDefault()
+  setError("")
 
-    if (!email.trim() || !password.trim()) {
-      setError("Completa todos los campos")
+  if (!email.trim() || !password.trim()) {
+    setError("Completa todos los campos")
+    return
+  }
+
+  setLoading(true)
+  try {
+    const res = await fetch("http://localhost:4000/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim(), password: password.trim() }),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      setError(data?.message ?? "Error al iniciar sesión")
+      setLoading(false)
       return
     }
 
-    setLoading(true)
-    // TODO: Connect to backend POST /api/auth/login
-    await new Promise((r) => setTimeout(r, 800))
+    // ✅ 1) guardá el token (ajustá la propiedad según tu backend)
+    const token = data?.token ?? data?.accessToken ?? data?.jwt
+    if (!token) {
+      setError("Login OK pero no llegó token (revisá respuesta del backend)")
+      setLoading(false)
+      return
+    }
+
+    localStorage.setItem("token", token)
+
+    // (opcional) guardá userId si te sirve
+    if (data?.user?.id) localStorage.setItem("userId", String(data.user.id))
+
+    // ✅ 2) marcá logged in
     setIsLoggedIn(true)
+
     setLoading(false)
     router.push("/profiles")
+  } catch (err) {
+    console.error(err)
+    setError("No se pudo conectar al servidor")
+    setLoading(false)
   }
+}
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-background px-6">

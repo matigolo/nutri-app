@@ -1,9 +1,9 @@
 export interface Profile {
   id: string
+  userId: string
   name: string
-  avatarColor: string
-  initials: string
-  createdAt: string
+  avatarUrl: string,
+  createdAt: Date
 }
 
 export interface Account {
