@@ -99,7 +99,7 @@ app.get("/me", auth, async (req, res) => {
   return res.json({ user: req.user });
 });
 
-
+//POST para crear un perfil -- verifica tambien que no exista un perfil con el mismo nombre asociado al mismo usuario
 app.post("/profiles", auth, async (req, res) => {
   try {
     const { name } = req.body;
@@ -135,7 +135,7 @@ app.post("/profiles", auth, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-
+//GET devuelve todos los perfiles asociados a un usuario
 app.get("/profiles", auth, async (req, res) =>  {
   try{
     const profiles = await prisma.profile.findMany({
@@ -165,13 +165,64 @@ app.get("/profiles", auth, async (req, res) =>  {
   }
     
 } )
+// DELETE elimina un perfil (no permite borrar el último)
+app.delete("/profiles/:id", auth, async (req, res) => {
+  try {
+    const profileIdStr = req.params.id;
+    if (!profileIdStr) {
+      return res.status(400).json({ error: "id es requerido" });
+    }
+
+    // Prisma con MySQL BigInt: usá BigInt() en Node
+    let profileId;
+    try {
+      profileId = BigInt(profileIdStr);
+    } catch {
+      return res.status(400).json({ error: "id inválido" });
+    }
+
+    // 1) traer el perfil y validar ownership
+    const profile = await prisma.profile.findFirst({
+      where: { id: profileId, userId: req.userId },
+      select: { id: true, userId: true, name: true },
+    });
+
+    if (!profile) {
+      return res.status(404).json({ error: "perfil no encontrado" });
+    }
+
+    // 2) contar perfiles del user (para evitar borrar el último)
+    const count = await prisma.profile.count({
+      where: { userId: req.userId },
+    });
+
+    if (count <= 1) {
+      return res.status(400).json({ error: "no podés eliminar el último perfil" });
+    }
+
+    // 3) borrar (cascade borra meals/items/favorites por tus relaciones)
+    await prisma.profile.delete({
+      where: { id: profileId },
+    });
+
+    return res.json({
+      ok: true,
+      deletedProfileId: profile.id.toString(),
+    });
+  } catch (err) {
+    console.error("ERROR DELETE /profiles/:id:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+//Perfil activo
 app.get("/profile/active", auth, profileContext, (req, res) => {
   return res.json({
     profileId: req.profileId.toString(),
     profile: req.profile,
   });
 });
-
+//POST para cargar una comida entera
 app.post("/meals", auth, profileContext, async (req, res) => {
   try {
     const { mealType, mealDate, notes, items } = req.body;
@@ -240,7 +291,7 @@ app.post("/meals", auth, profileContext, async (req, res) => {
   }
 });
 
-
+//GET de todas las comidas de un perfil
 app.get("/meals", auth, profileContext, async (req, res) => {
   try {
     const meals = await prisma.meal.findMany({

@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useProfiles } from "@/lib/app-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Pencil, Trash2, LogOut, X, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Profile } from "@/lib/types"
 
 const AVATAR_COLORS = [
   "oklch(0.985 0 0)",
@@ -18,28 +19,97 @@ const AVATAR_COLORS = [
 
 export default function ProfilesPage() {
   const router = useRouter()
-  const { profiles, activeProfile, setActiveProfile, addProfile, removeProfile, logout } = useProfiles()
+  const {activeProfile, setActiveProfile, addProfile, removeProfile, logout } = useProfiles()
+  const [profiles, setProfiles] = useState<Profile[]>([])
   const [managing, setManaging] = useState(false)
   const [addingNew, setAddingNew] = useState(false)
   const [newName, setNewName] = useState("")
 
-  function handleSelectProfile(profile: typeof profiles[0]) {
+    useEffect(() => { //me recomendó IA para expulsar si alguien entra sin token
+  const token = localStorage.getItem("token")
+  if (!token) {
+    router.push("/login")
+    return
+  }
+
+  fetchProfiles()
+}, [])
+    async function fetchProfiles() { //fetchprofiles hace el get de perfiles y guarda los datos en profile
+      const token = localStorage.getItem("token"); //extraigo el token del user para usar de autorización
+
+      //const profileId = localStorage.getItem("activeProfileId")
+
+      const res = await fetch("http://localhost:4000/profiles", { //endpoint
+        headers: {
+          Authorization: `Bearer ${token}`, //autorizacion
+          // "X-Profile-Id": profileId,     -- esto seria si necesito el perfil.
+        },
+      });
+
+      const data = await res.json();
+      setProfiles(data.profiles);
+    }
+    // Hacemos useEffect para que en caso de alguna modificacion, se reseteen los datos
+    useEffect(() => {
+      fetchProfiles();
+  }, []);
+
+  function handleSelectProfile(profile: Profile) {
     if (managing) return
     setActiveProfile(profile)
     router.push("/home")
   }
 
-  function handleAddProfile() {
-    if (!newName.trim()) return
-    addProfile(newName.trim())
-    setNewName("")
-    setAddingNew(false)
+  async function handleAddProfile() { //hago el POST para agregar perfil
+    const token = localStorage.getItem("token"); //extraigo el token del user para usar de autorización
+    const res = await fetch("http://localhost:4000/profiles", { //endpoint
+          method: "POST",
+          headers: {"Content-Type": "application/json",
+            Authorization: `Bearer ${token}`, 
+          },
+          body: JSON.stringify({ name: newName.trim() }),
+        })
+      const data = await res.json()
+
+  if (!res.ok) {
+    console.log("Error create profile:", data)
+    return
   }
 
-  function handleLogout() {
-    logout()
-    router.push("/login")
+  setNewName("")
+  setAddingNew(false)
+
+  // ✅ refrescá lista
+  await fetchProfiles()
   }
+  
+
+
+
+async function handleDeleteProfile(profile: Profile) {
+  const token = localStorage.getItem("token")
+  if (!token) { router.push("/login"); return }
+
+  const res = await fetch(`http://localhost:4000/profiles/${profile.id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  })
+
+  const data = await res.json()
+
+  if (!res.ok) {
+    alert(data.error || "Error al eliminar perfil")
+    return
+  }
+
+  await fetchProfiles()
+}
+
+function handleLogout() {
+  logout()
+  localStorage.removeItem("token");
+  router.push("/login")
+}
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-background px-6">
@@ -56,7 +126,7 @@ export default function ProfilesPage() {
 
         {/* Profile Grid */}
         <div className="flex flex-wrap items-center justify-center gap-6">
-          {profiles.map((profile) => (
+          {(profiles ?? []).map((profile: Profile) => (
             <button
               key={profile.id}
               onClick={() => handleSelectProfile(profile)}
@@ -75,22 +145,22 @@ export default function ProfilesPage() {
                     : "border-border",
                   !managing && "group-hover:border-foreground/60"
                 )}
-                style={{ backgroundColor: `color-mix(in oklch, ${profile.avatarColor} 15%, transparent)` }}
+                style={{ backgroundColor: `color-mix(in oklch, blue 15%, transparent)` }} // en vez de red, ${profile.avatarUrl}
               >
                 <span
                   className="text-xl font-bold"
-                  style={{ color: profile.avatarColor }}
+                  style={{ color: "red" /*profile.avatarUrl*/ }}
                 >
-                  {profile.initials}
+                  {profile.name}
                 </span>
 
                 {/* Delete button in managing mode */}
                 {managing && profiles.length > 1 && (
                   <button
                     onClick={(e) => {
-                      e.stopPropagation()
-                      removeProfile(profile.id)
-                    }}
+                    e.stopPropagation()
+                    handleDeleteProfile(profile)
+                  }}
                     className="absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground transition-transform hover:scale-110"
                     aria-label={`Eliminar perfil ${profile.name}`}
                   >
@@ -105,7 +175,7 @@ export default function ProfilesPage() {
           ))}
 
           {/* Add Profile Button */}
-          {profiles.length < 5 && !addingNew && (
+          {(profiles ?? []).length < 5 && !addingNew && (
             <button
               onClick={() => setAddingNew(true)}
               className="group flex flex-col items-center gap-2 outline-none transition-transform hover:scale-105"
@@ -174,12 +244,12 @@ export default function ProfilesPage() {
           </Button>
 
           <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <LogOut className="size-3.5" />
-            Cerrar sesion
-          </button>
+  onClick={handleLogout}
+  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+>
+  <LogOut className="size-3.5" />
+  Cerrar sesion
+</button>
         </div>
       </div>
     </main>
