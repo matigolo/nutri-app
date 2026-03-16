@@ -36,12 +36,12 @@ export function MealItemsList({ items, onUpdateItem, onRemoveItem }: MealItemsLi
           {/* Item Header */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1">
-              {item.foodId ? (
-                <p className="text-sm font-medium text-foreground">{item.customName}</p>
+              {item.id ? (
+                <p className="text-sm font-medium text-foreground">{item.name}</p>
               ) : (
                 <Input
-                  value={item.customName}
-                  onChange={(e) => onUpdateItem(item.id, { customName: e.target.value })}
+                  value={item.name}
+                  onChange={(e) => onUpdateItem(item.id, { name: e.target.value })}
                   placeholder="Nombre del alimento"
                   className="h-8 rounded-lg border-border bg-transparent text-sm text-foreground"
                 />

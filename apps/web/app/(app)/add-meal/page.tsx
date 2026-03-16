@@ -3,16 +3,15 @@
 import { useState, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useProfiles, useMeals } from "@/lib/app-context"
-import { calculateMacrosFromCatalog, calculateMealTotals, formatDate } from "@/lib/nutrition-helpers"
-import { foodCatalog } from "@/lib/mock-data"
+import { calculateMacrosFromApiFood, calculateMealTotals, formatDate } from "@/lib/nutrition-helpers"
 import { FoodSearchAdd } from "@/components/food-search-add"
 import { MealItemsList } from "@/components/meal-items-list"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ArrowLeft, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { MealItem, MealEntry, FoodItem } from "@/lib/types"
-
+import type { MealItem, MealEntry } from "@/lib/types"
+import type { FoodSearchItem } from "@/lib/types"
 const MEAL_TYPES: { value: MealEntry["type"]; label: string }[] = [
   { value: "desayuno", label: "Desayuno" },
   { value: "almuerzo", label: "Almuerzo" },
@@ -36,18 +35,22 @@ export default function AddMealPage() {
 
   const totals = useMemo(() => calculateMealTotals(items), [items])
 
-  const handleSelectFood = useCallback((food: FoodItem) => {
-    const macros = calculateMacrosFromCatalog(food, 100, "gramos")
-    const newItem: MealItem = {
-      id: `mi-${Date.now()}-${Math.random()}`,
-      name: food.name,
-       quantity: 100,
-      unit: "gramos",
-      macros,
-      advancedOpen: false,
-    }
-    setItems((prev) => [...prev, newItem])
-  }, [])
+const handleSelectFood = useCallback((food: FoodSearchItem) => {
+  const macros = calculateMacrosFromApiFood(food, 100, "gramos")
+
+  const newItem: MealItem = {
+    id: `mi-${Date.now()}-${Math.random()}`,
+    name: food.description,
+    quantity: 100,
+    unit: "gramos",
+    macros,
+    advancedOpen: false,
+  }
+
+  setItems((prev) => [...prev, newItem])
+
+  
+}, [])
 
   const handleAddManual = useCallback(() => {
     const newItem: MealItem = {
@@ -63,25 +66,38 @@ export default function AddMealPage() {
   }, [])
 
   const handleUpdateItem = useCallback((id: string, updates: Partial<MealItem>) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item
-        const updated = { ...item, ...updates }
-        // Recalculate macros from catalog if quantity or unit changes and item is from catalog
-        if (item.name && (updates.quantity !== undefined || updates.unit !== undefined)) {
-          const food = foodCatalog.find((f) => f.id === item.name) //no me conviene hacer un get de la api y fijarme aca?? entiendp que la api ya devuelve filtrado igual
-          if (food) {
-            updated.macros = calculateMacrosFromCatalog(
-              food,
-              updates.quantity ?? item.quantity,
-              updates.unit ?? item.unit
-            )
-          }
+  setItems((prev) =>
+    prev.map((item) => {
+      if (item.id !== id) return item
+
+      const updated = { ...item, ...updates }
+
+      if (
+        item.referenceMacros &&
+        (updates.quantity !== undefined || updates.unit !== undefined)
+      ) {
+        const nextQuantity = updates.quantity ?? item.quantity
+        const nextUnit = updates.unit ?? item.unit
+
+        let grams = nextQuantity
+        if (nextUnit === "porcion") grams = nextQuantity * 100
+        else if (nextUnit === "unidad") grams = nextQuantity * 50
+        else if (nextUnit === "ml") grams = nextQuantity
+
+        const factor = grams / 100
+
+        updated.macros = {
+          kcal: Math.round(item.referenceMacros.kcal * factor),
+          protein: Math.round(item.referenceMacros.protein * factor * 10) / 10,
+          carbs: Math.round(item.referenceMacros.carbs * factor * 10) / 10,
+          fat: Math.round(item.referenceMacros.fat * factor * 10) / 10,
         }
-        return updated
-      })
-    )
-  }, [])
+      }
+
+      return updated
+    })
+  )
+}, [])
 
   const handleRemoveItem = useCallback((id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id))

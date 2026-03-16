@@ -160,10 +160,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (profiles.length >= 5) return
     const newProfile: Profile = {
       id: `p-${Date.now()}`,
+      userId: String() ,
       name,
-      avatarColor: AVATAR_COLORS[profiles.length % AVATAR_COLORS.length],
-      initials: name.slice(0, 2).toUpperCase(),
-      createdAt: new Date().toISOString(),
+      avatarUrl: "",
+      createdAt: new Date(),
     }
     setProfiles((prev) => [...prev, newProfile])
   }, [profiles.length])
@@ -197,8 +197,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const recentFoodIds = meals
     .filter((m) => m.profileId === activeProfile?.id)
     .flatMap((m) => m.items)
-    .filter((i) => i.foodId)
-    .map((i) => i.foodId!)
+    .filter((i) => i.id)
+    .map((i) => i.id!)
     .filter((v, i, a) => a.indexOf(v) === i)
     .slice(-5)
 

@@ -4,63 +4,30 @@ import { useState, useMemo, useCallback } from "react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, X } from "lucide-react"
-import { foodCatalog } from "@/lib/mock-data"
 import { useMeals } from "@/lib/app-context"
 import { cn } from "@/lib/utils"
-import type { FoodItem } from "@/lib/types"
-
-import { useFoodSearch, type FoodSearchItem } from "@/lib/hooks/useFoodSearch"
+import type { FoodSearchItem } from "@/lib/types"
+import { useFoodSearch} from "@/lib/hooks/useFoodSearch"
 
 interface FoodSearchAddProps {
-  onSelectFood: (food: FoodItem) => void
+  onSelectFood: (food: FoodSearchItem) => void
   onAddManual: () => void
 }
 
-// ✅ Adapter: FoodSearchItem (API) -> FoodItem (tu app)
-function toFoodItem(f: FoodSearchItem): FoodItem {
-  return {
-    // OJO: ajustá si tu FoodItem usa number en vez de string para id
-    id: String(f.fdcId),
-    name: f.description,
 
-    // Estos campos existen en tu FoodItem según el error.
-    // Les ponemos defaults razonables para que compile.
-    unitBase: "g",
-    kcalPer100g: f.calories ?? 0,
-
-    // Campos extra típicos (si en tu FoodItem se llaman distinto, avisame y lo adapto)
-    proteinPer100g: f.protein ?? 0,
-    carbsPer100g: f.carbs ?? 0,
-    fatPer100g: f.fat ?? 0,
-
-    // opcionales
-    brand: f.brandName ?? undefined,
-    fdcId: f.fdcId,
-  } as unknown as FoodItem
-  // 👆 El "as unknown as FoodItem" es para no trabarnos si tu FoodItem tiene
-  // más propiedades obligatorias con otros nombres. Si me pegás el type FoodItem
-  // completo, lo dejamos 100% tipado sin casts.
-}
 
 export function FoodSearchAdd({ onSelectFood, onAddManual }: FoodSearchAddProps) {
-  const { recentFoodIds } = useMeals()
+  const [recentFoods, setRecentFoods] = useState<FoodSearchItem[]>([]) 
   const [query, setQuery] = useState("")
   const [focused, setFocused] = useState(false)
 
-  const recentFoods = useMemo(
-    () =>
-      recentFoodIds
-        .map((id) => foodCatalog.find((f) => f.id === id))
-        .filter(Boolean) as FoodItem[],
-    [recentFoodIds]
-  )
 
   // ✅ resultados de la API
   const { results, loading, error } = useFoodSearch(query)
 
   // ✅ para los recientes (ya FoodItem)
   const handleSelectFoodItem = useCallback(
-    (food: FoodItem) => {
+    (food: FoodSearchItem) => {
       onSelectFood(food)
       setQuery("")
       setFocused(false)
@@ -71,7 +38,7 @@ export function FoodSearchAdd({ onSelectFood, onAddManual }: FoodSearchAddProps)
   // ✅ para los resultados de la API (FoodSearchItem)
   const handleSelectSearchItem = useCallback(
     (food: FoodSearchItem) => {
-      onSelectFood(toFoodItem(food))
+      onSelectFood(food)
       setQuery("")
       setFocused(false)
     },
@@ -111,12 +78,12 @@ export function FoodSearchAdd({ onSelectFood, onAddManual }: FoodSearchAddProps)
           <div className="flex flex-wrap gap-1.5">
             {recentFoods.map((food) => (
               <Badge
-                key={food.id}
+                key={food.fdcId}
                 variant="secondary"
                 className="cursor-pointer rounded-lg px-2.5 py-1 text-xs text-foreground hover:bg-secondary/80 transition-colors"
                 onClick={() => handleSelectFoodItem(food)}
               >
-                {food.name}
+                {food.description}
               </Badge>
             ))}
           </div>

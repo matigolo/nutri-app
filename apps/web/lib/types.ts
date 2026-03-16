@@ -13,20 +13,19 @@ export interface Account {
   profiles: Profile[]
 }
 
-export interface FoodItem {
-  id: string
-  name: string
-  brand?: string
-  unitBase: string
-  kcalPer100g: number
-  proteinPer100g: number
-  carbsPer100g: number
-  fatPer100g: number
+export type FoodSearchItem = {
+  fdcId: number
+  description: string
+  brandName: string | null
+  calories: number | null
+  protein: number | null
+  carbs: number | null
+  fat: number | null
 }
 
-export interface MealItem {
+export type MealItem = {
   id: string
-  name: string | null
+  name: string
   quantity: number
   unit: "gramos" | "ml" | "porcion" | "unidad"
   macros: {
@@ -35,7 +34,13 @@ export interface MealItem {
     carbs: number
     fat: number
   }
-  advancedOpen: boolean
+  referenceMacros?: {
+    kcal: number
+    protein: number
+    carbs: number
+    fat: number
+  }
+  advancedOpen?: boolean
 }
 
 export interface MealEntry {

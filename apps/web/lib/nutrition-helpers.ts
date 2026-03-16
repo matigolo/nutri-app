@@ -1,21 +1,23 @@
-import type { FoodItem, MealItem, MealEntry } from "./types"
-
-export function calculateMacrosFromCatalog(
-  food: FoodItem,
+import type {  MealItem, MealEntry } from "./types"
+import type { FoodSearchItem } from "./types"
+export function calculateMacrosFromApiFood(
+  food: FoodSearchItem,
   quantity: number,
   unit: MealItem["unit"]
 ): MealItem["macros"] {
   let grams = quantity
+
   if (unit === "porcion") grams = quantity * 100
   else if (unit === "unidad") grams = quantity * 50
   else if (unit === "ml") grams = quantity
 
   const factor = grams / 100
+
   return {
-    kcal: Math.round(food.kcalPer100g * factor),
-    protein: Math.round(food.proteinPer100g * factor * 10) / 10,
-    carbs: Math.round(food.carbsPer100g * factor * 10) / 10,
-    fat: Math.round(food.fatPer100g * factor * 10) / 10,
+    kcal: Math.round((food.calories ?? 0) * factor),
+    protein: Math.round((food.protein ?? 0) * factor * 10) / 10,
+    carbs: Math.round((food.carbs ?? 0) * factor * 10) / 10,
+    fat: Math.round((food.fat ?? 0) * factor * 10) / 10,
   }
 }
 

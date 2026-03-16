@@ -1,4 +1,4 @@
-import type { FoodItem, Recipe, Profile } from "./types"
+import type {Recipe, Profile } from "./types"
 
 export const defaultProfiles: Profile[] = [
   {
@@ -18,23 +18,6 @@ export const avatarColors = [
   "oklch(0.70 0.15 200)",
 ]
 
-export const foodCatalog: FoodItem[] = [
-  { id: "f1", name: "Arroz blanco cocido", brand: "Generico", unitBase: "100g", kcalPer100g: 130, proteinPer100g: 2.7, carbsPer100g: 28, fatPer100g: 0.3 },
-  { id: "f2", name: "Pechuga de pollo", brand: "Generico", unitBase: "100g", kcalPer100g: 165, proteinPer100g: 31, carbsPer100g: 0, fatPer100g: 3.6 },
-  { id: "f3", name: "Banana", brand: "", unitBase: "100g", kcalPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 23, fatPer100g: 0.3 },
-  { id: "f4", name: "Huevo entero", brand: "Generico", unitBase: "100g", kcalPer100g: 155, proteinPer100g: 13, carbsPer100g: 1.1, fatPer100g: 11 },
-  { id: "f5", name: "Avena", brand: "Quaker", unitBase: "100g", kcalPer100g: 389, proteinPer100g: 16.9, carbsPer100g: 66, fatPer100g: 6.9 },
-  { id: "f6", name: "Leche descremada", brand: "La Serenisima", unitBase: "100g", kcalPer100g: 34, proteinPer100g: 3.4, carbsPer100g: 5, fatPer100g: 0.1 },
-  { id: "f7", name: "Pan integral", brand: "Bimbo", unitBase: "100g", kcalPer100g: 247, proteinPer100g: 13, carbsPer100g: 41, fatPer100g: 3.4 },
-  { id: "f8", name: "Atun en agua", brand: "La Campagnola", unitBase: "100g", kcalPer100g: 116, proteinPer100g: 26, carbsPer100g: 0, fatPer100g: 1 },
-  { id: "f9", name: "Yogur natural", brand: "La Serenisima", unitBase: "100g", kcalPer100g: 59, proteinPer100g: 10, carbsPer100g: 3.6, fatPer100g: 0.4 },
-  { id: "f10", name: "Batata", brand: "", unitBase: "100g", kcalPer100g: 86, proteinPer100g: 1.6, carbsPer100g: 20, fatPer100g: 0.1 },
-  { id: "f11", name: "Manzana", brand: "", unitBase: "100g", kcalPer100g: 52, proteinPer100g: 0.3, carbsPer100g: 14, fatPer100g: 0.2 },
-  { id: "f12", name: "Queso crema light", brand: "Casancrem", unitBase: "100g", kcalPer100g: 150, proteinPer100g: 7, carbsPer100g: 4, fatPer100g: 12 },
-  { id: "f13", name: "Tomate", brand: "", unitBase: "100g", kcalPer100g: 18, proteinPer100g: 0.9, carbsPer100g: 3.9, fatPer100g: 0.2 },
-  { id: "f14", name: "Pasta cocida", brand: "Generico", unitBase: "100g", kcalPer100g: 131, proteinPer100g: 5, carbsPer100g: 25, fatPer100g: 1.1 },
-  { id: "f15", name: "Carne molida magra", brand: "Generico", unitBase: "100g", kcalPer100g: 137, proteinPer100g: 21, carbsPer100g: 0, fatPer100g: 5.5 },
-]
 
 export const recipes: Recipe[] = [
   {

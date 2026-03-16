@@ -144,7 +144,7 @@ export function DayDetailDrawer({ open, onOpenChange, selectedDate, onAddMeal }:
                                 <div key={item.id} className="flex items-center justify-between">
                                   <div className="flex-1 min-w-0">
                                     <p className="truncate text-sm text-foreground">
-                                      {item.customName || item.foodId}
+                                      {item.name || item.id}
                                     </p>
                                     <p className="text-[10px] tabular-nums text-muted-foreground">
                                       {item.quantity}{item.unit === "gramos" ? "g" : item.unit === "ml" ? "ml" : ` ${item.unit}`}

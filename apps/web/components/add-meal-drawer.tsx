@@ -2,8 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react"
 import { useProfiles, useMeals } from "@/lib/app-context"
-import { calculateMacrosFromCatalog, calculateMealTotals, formatDate } from "@/lib/nutrition-helpers"
-import { foodCatalog } from "@/lib/mock-data"
+import { calculateMacrosFromApiFood, calculateMealTotals, formatDate } from "@/lib/nutrition-helpers"
 import { FoodSearchAdd } from "@/components/food-search-add"
 import { MealItemsList } from "@/components/meal-items-list"
 import { Button } from "@/components/ui/button"
@@ -18,7 +17,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Check, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { MealItem, MealEntry, FoodItem } from "@/lib/types"
+import type { MealItem, MealEntry, FoodSearchItem} from "@/lib/types"
 
 const MEAL_TYPES: { value: MealEntry["type"]; label: string }[] = [
   { value: "desayuno", label: "Desayuno" },
@@ -64,25 +63,33 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
 
   const totals = useMemo(() => calculateMealTotals(items), [items])
 
-  const handleSelectFood = useCallback((food: FoodItem) => {
-    const macros = calculateMacrosFromCatalog(food, 100, "gramos")
-    const newItem: MealItem = {
-      id: `mi-${Date.now()}-${Math.random()}`,
-      foodId: food.id,
-      customName: food.name,
-      quantity: 100,
-      unit: "gramos",
-      macros,
-      advancedOpen: false,
-    }
-    setItems((prev) => [...prev, newItem])
-  }, [])
+  const handleSelectFood = useCallback((food: FoodSearchItem) => {
+  const newItem: MealItem = {
+    id: `mi-${Date.now()}-${Math.random()}`,
+    name: food.description,
+    quantity: 100,
+    unit: "gramos",
+    macros: {
+      kcal: food.calories ?? 0,
+      protein: food.protein ?? 0,
+      carbs: food.carbs ?? 0,
+      fat: food.fat ?? 0,
+    },
+    referenceMacros: {
+      kcal: food.calories ?? 0,
+      protein: food.protein ?? 0,
+      carbs: food.carbs ?? 0,
+      fat: food.fat ?? 0,
+    },
+    advancedOpen: false,
+  }
 
+  setItems((prev) => [...prev, newItem])
+}, [])
   const handleAddManual = useCallback(() => {
     const newItem: MealItem = {
       id: `mi-${Date.now()}-${Math.random()}`,
-      foodId: null,
-      customName: "",
+      name: "",
       quantity: 0,
       unit: "gramos",
       macros: { kcal: 0, protein: 0, carbs: 0, fat: 0 },
@@ -92,25 +99,36 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
   }, [])
 
   const handleUpdateItem = useCallback((id: string, updates: Partial<MealItem>) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item
-        const updated = { ...item, ...updates }
-        if (item.foodId && (updates.quantity !== undefined || updates.unit !== undefined)) {
-          const food = foodCatalog.find((f) => f.id === item.foodId)
-          if (food) {
-            updated.macros = calculateMacrosFromCatalog(
-              food,
-              updates.quantity ?? item.quantity,
-              updates.unit ?? item.unit
-            )
-          }
-        }
-        return updated
-      })
-    )
-  }, [])
+  setItems((prev) =>
+    prev.map((item) => {
+      if (item.id !== id) return item
 
+      const updated = { ...item, ...updates }
+
+      if (
+        item.referenceMacros &&
+        (updates.quantity !== undefined || updates.unit !== undefined)
+      ) {
+        let grams = updates.quantity ?? item.quantity
+
+        if ((updates.unit ?? item.unit) === "porcion") grams = (updates.quantity ?? item.quantity) * 100
+        else if ((updates.unit ?? item.unit) === "unidad") grams = (updates.quantity ?? item.quantity) * 50
+        else if ((updates.unit ?? item.unit) === "ml") grams = updates.quantity ?? item.quantity
+
+        const factor = grams / 100
+
+        updated.macros = {
+          kcal: Math.round(item.referenceMacros.kcal * factor),
+          protein: Math.round(item.referenceMacros.protein * factor * 10) / 10,
+          carbs: Math.round(item.referenceMacros.carbs * factor * 10) / 10,
+          fat: Math.round(item.referenceMacros.fat * factor * 10) / 10,
+        }
+      }
+
+      return updated
+    })
+  )
+}, [])
   const handleRemoveItem = useCallback((id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id))
   }, [])
@@ -121,7 +139,7 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
     if (items.length === 0) errs.push("Agrega al menos un alimento")
     items.forEach((item, idx) => {
       if (item.quantity <= 0) errs.push(`Alimento ${idx + 1}: cantidad > 0`)
-      if (!item.foodId && !item.customName.trim()) errs.push(`Alimento ${idx + 1}: ingresa un nombre`)
+      if (!item.id && !item.name?.trim()) errs.push(`Alimento ${idx + 1}: ingresa un nombre`)
     })
     return errs
   }

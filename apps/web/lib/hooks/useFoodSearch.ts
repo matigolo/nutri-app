@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState } from "react"
+import { FoodSearchItem } from "../types"
 
-
-export type FoodSearchItem = {
-  fdcId: number
-  description: string
-  brandName: string | null
-  calories: number | null
-  protein: number | null
-  carbs: number | null
-  fat: number | null
-}
+const API_URL = "http://localhost:4000"
 
 export function useFoodSearch(query: string) {
   const [results, setResults] = useState<FoodSearchItem[]>([])
@@ -24,6 +16,7 @@ export function useFoodSearch(query: string) {
     const token = localStorage.getItem("token")
     const profileId = localStorage.getItem("activeProfileId")
 
+    console.log("hook query:", q)
 
     if (!q) {
       abortRef.current?.abort()
@@ -47,19 +40,20 @@ export function useFoodSearch(query: string) {
       setError(null)
 
       try {
-        console.log("AAA: " , encodeURIComponent(q))
         const headers: Record<string, string> = {}
         if (token) headers.Authorization = `Bearer ${token}`
         if (profileId) headers["X-Profile-Id"] = profileId
 
-        const r = await fetch(`/foods/search?q=${encodeURIComponent(q)}`, {
-        headers,
-        signal: controller.signal,
-        // ✅ NO credentials
+        console.log("token: ", token, " profileId: ", profileId)
+        console.log("fetching:", `${API_URL}/foods/search?q=${encodeURIComponent(q)}`)
+        console.log("leo API")
+        const r = await fetch(`${API_URL}/foods/search?q=${encodeURIComponent(q)}`, {
+          headers,
+          signal: controller.signal,
         })
 
-
         const data = await r.json()
+        console.log("response:", data)
 
         if (!r.ok) {
           setResults([])
@@ -70,6 +64,7 @@ export function useFoodSearch(query: string) {
         setResults((data.foods || []).slice(0, 8))
       } catch (e: any) {
         if (e?.name === "AbortError") return
+        console.error("useFoodSearch error:", e)
         setResults([])
         setError(e?.message || "Error de red")
       } finally {
