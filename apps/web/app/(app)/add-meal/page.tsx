@@ -40,9 +40,8 @@ export default function AddMealPage() {
     const macros = calculateMacrosFromCatalog(food, 100, "gramos")
     const newItem: MealItem = {
       id: `mi-${Date.now()}-${Math.random()}`,
-      foodId: food.id,
-      customName: food.name,
-      quantity: 100,
+      name: food.name,
+       quantity: 100,
       unit: "gramos",
       macros,
       advancedOpen: false,
@@ -53,8 +52,7 @@ export default function AddMealPage() {
   const handleAddManual = useCallback(() => {
     const newItem: MealItem = {
       id: `mi-${Date.now()}-${Math.random()}`,
-      foodId: null,
-      customName: "",
+      name: "",
       quantity: 0,
       unit: "gramos",
       macros: { kcal: 0, protein: 0, carbs: 0, fat: 0 },
@@ -70,8 +68,8 @@ export default function AddMealPage() {
         if (item.id !== id) return item
         const updated = { ...item, ...updates }
         // Recalculate macros from catalog if quantity or unit changes and item is from catalog
-        if (item.foodId && (updates.quantity !== undefined || updates.unit !== undefined)) {
-          const food = foodCatalog.find((f) => f.id === item.foodId)
+        if (item.name && (updates.quantity !== undefined || updates.unit !== undefined)) {
+          const food = foodCatalog.find((f) => f.id === item.name) //no me conviene hacer un get de la api y fijarme aca?? entiendp que la api ya devuelve filtrado igual
           if (food) {
             updated.macros = calculateMacrosFromCatalog(
               food,
@@ -95,7 +93,7 @@ export default function AddMealPage() {
     if (items.length === 0) errs.push("Agrega al menos un alimento")
     items.forEach((item, idx) => {
       if (item.quantity <= 0) errs.push(`Alimento ${idx + 1}: la cantidad debe ser mayor a 0`)
-      if (!item.foodId && !item.customName.trim()) errs.push(`Alimento ${idx + 1}: ingresa un nombre`)
+      if (!item.name && !item.name?.trim()) errs.push(`Alimento ${idx + 1}: ingresa un nombre`)
     })
     return errs
   }

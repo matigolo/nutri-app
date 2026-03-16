@@ -26,8 +26,7 @@ export interface FoodItem {
 
 export interface MealItem {
   id: string
-  foodId: string | null
-  customName: string
+  name: string | null
   quantity: number
   unit: "gramos" | "ml" | "porcion" | "unidad"
   macros: {

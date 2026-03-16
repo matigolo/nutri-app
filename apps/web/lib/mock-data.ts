@@ -3,10 +3,10 @@ import type { FoodItem, Recipe, Profile } from "./types"
 export const defaultProfiles: Profile[] = [
   {
     id: "p1",
+    userId: "2",
     name: "Martin",
-    avatarColor: "oklch(0.985 0 0)",
-    initials: "MA",
-    createdAt: new Date().toISOString(),
+    avatarUrl: "oklch(0.985 0 0)",
+    createdAt: new Date(),
   },
 ]
 

@@ -3,14 +3,25 @@ const jwt = require("jsonwebtoken");
 const profileContext = require("./middlewares/profileContext");
 const auth = require("./middlewares/auth");
 const prisma = require("./prisma");
-const express = require("express");
-const cors = require("cors");
-require("dotenv").config();
+const express = require("express")
+const cors = require("cors")
+require("dotenv").config()
 
-const app = express();
+const app = express()
 
-app.use(cors());
-app.use(express.json());
+const corsOptions = {
+  origin: "http://localhost:3000",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Profile-Id"],
+  credentials: false,
+}
+
+app.use(cors(corsOptions))
+// si querés asegurar preflight:
+app.options(/.*/, cors(corsOptions))
+
+app.use(express.json())
+
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
@@ -327,6 +338,7 @@ app.get("/meals", auth, profileContext, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+//Buscar comida inventario / API
 app.get("/foods/search", auth, profileContext, async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
@@ -382,10 +394,17 @@ app.get("/foods/:fdcId", auth, profileContext, async (req, res) => {
     const fdcId = Number(req.params.fdcId);
     if (!fdcId) return res.status(400).json({ error: "fdcId inválido" });
 
-    const url = `https://api.nal.usda.gov/fdc/v1/food/${fdcId}`;
+    const apiKey = process.env.USDA_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "Falta USDA_API_KEY en .env" });
+
+    const url = `https://api.nal.usda.gov/fdc/v1/food/${fdcId}?api_key=${apiKey}`;
 
     const r = await fetch(url);
     const data = await r.json();
+
+    if (!r.ok) {
+      return res.status(r.status).json({ error: "USDA error", details: data });
+    }
 
     return res.json({ food: data });
   } catch (err) {
@@ -394,11 +413,6 @@ app.get("/foods/:fdcId", auth, profileContext, async (req, res) => {
   }
 });
 
-
-/*app.get("/users", async (req, res) => {
-  const users = await prisma.user.findMany();
-  res.json(users);
-});*/
 const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {
