@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { FoodSearchItem } from "../types"
+import { apiFetch } from "../api"
 
 const API_URL = "http://localhost:4000"
 
@@ -40,15 +41,8 @@ export function useFoodSearch(query: string) {
       setError(null)
 
       try {
-        const headers: Record<string, string> = {}
-        if (token) headers.Authorization = `Bearer ${token}`
-        if (profileId) headers["X-Profile-Id"] = profileId
 
-        console.log("token: ", token, " profileId: ", profileId)
-        console.log("fetching:", `${API_URL}/foods/search?q=${encodeURIComponent(q)}`)
-        console.log("leo API")
-        const r = await fetch(`${API_URL}/foods/search?q=${encodeURIComponent(q)}`, {
-          headers,
+        const r = await apiFetch(`${API_URL}/foods/search?q=${encodeURIComponent(q)}`, {
           signal: controller.signal,
         })
 

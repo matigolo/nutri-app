@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Plus, Pencil, Trash2, LogOut, X, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Profile } from "@/lib/types"
+import { apiFetch } from "@/lib/api"
 
 const AVATAR_COLORS = [
   "oklch(0.985 0 0)",
@@ -39,11 +40,7 @@ export default function ProfilesPage() {
 
       //const profileId = localStorage.getItem("activeProfileId")
 
-      const res = await fetch("http://localhost:4000/profiles", { //endpoint
-        headers: {
-          Authorization: `Bearer ${token}`, //autorizacion
-          // "X-Profile-Id": profileId,     -- esto seria si necesito el perfil.
-        },
+      const res = await apiFetch("http://localhost:4000/profiles", { //endpoint
       });
 
       const data = await res.json();
@@ -61,12 +58,7 @@ export default function ProfilesPage() {
   }
 
   async function handleAddProfile() { //hago el POST para agregar perfil
-    const token = localStorage.getItem("token"); //extraigo el token del user para usar de autorización
-    const res = await fetch("http://localhost:4000/profiles", { //endpoint
-          method: "POST",
-          headers: {"Content-Type": "application/json",
-            Authorization: `Bearer ${token}`, 
-          },
+    const res = await apiFetch("http://localhost:4000/profiles", { //endpoint
           body: JSON.stringify({ name: newName.trim() }),
         })
       const data = await res.json()
@@ -90,9 +82,8 @@ async function handleDeleteProfile(profile: Profile) {
   const token = localStorage.getItem("token")
   if (!token) { router.push("/login"); return }
 
-  const res = await fetch(`http://localhost:4000/profiles/${profile.id}`, {
+  const res = await apiFetch(`http://localhost:4000/profiles/${profile.id}`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
   })
 
   const data = await res.json()
