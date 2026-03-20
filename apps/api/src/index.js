@@ -412,6 +412,245 @@ app.get("/foods/:fdcId", auth, profileContext, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+//POST recetas ALL
+app.post("/recipes", auth, profileContext, async (req, res) => {
+  try {
+    const profileId = req.profile.id
+    const {
+      title,
+      description,
+      ingredients,
+      steps,
+      timeMinutes,
+      calories,
+      imageUrl,
+    } = req.body
+
+    if (!title || !Array.isArray(ingredients) || !Array.isArray(steps)) {
+      return res.status(400).json({
+        error: "title, ingredients y steps son obligatorios",
+      })
+    }
+
+    const recipe = await prisma.recipe.create({
+      data: {
+        profileId,
+        title,
+        description: description || null,
+        ingredients,
+        steps,
+        timeMinutes: timeMinutes ?? null,
+        calories: calories ?? null,
+        imageUrl: imageUrl || null,
+      },
+    })
+
+    res.status(201).json({ recipe })
+  } catch (error) {
+    console.error("POST /recipes error", error)
+    res.status(500).json({ error: "Error creando receta" })
+  }
+})
+
+//Buscar recetas
+app.get("/recipes", auth, profileContext, async (req, res) => {
+  try {
+    const profileId = req.profile.id
+    const search = String(req.query.search || "").trim()
+
+    const recipes = await prisma.recipe.findMany({
+      where: search
+        ? {
+            title: {
+              contains: search,
+              mode: "insensitive",
+            },
+          }
+        : {},
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        favorites: {
+          where: {
+            profileId,
+          },
+          select: {
+            recipeId: true,
+          },
+        },
+        profile: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    })
+
+    const formatted = recipes.map((recipe) => ({
+      id: recipe.id.toString(),
+      title: recipe.title,
+      description: recipe.description,
+      ingredients: recipe.ingredients,
+      steps: recipe.steps,
+      timeMinutes: recipe.timeMinutes,
+      calories: recipe.calories,
+      imageUrl: recipe.imageUrl,
+      createdAt: recipe.createdAt,
+      author: recipe.profile,
+      isFavorite: recipe.favorites.length > 0,
+    }))
+
+    res.json({ recipes: formatted })
+  } catch (error) {
+    console.error("GET /recipes error", error)
+    res.status(500).json({ error: "Error obteniendo recetas" })
+  }
+})
+
+//ver receta puntual
+app.get("/recipes/:id", auth, profileContext, async (req, res) => {
+  try {
+    const profileId = req.profile.id
+    const recipeId = BigInt(req.params.id)
+
+    const recipe = await prisma.recipe.findUnique({
+      where: { id: recipeId },
+      include: {
+        favorites: {
+          where: { profileId },
+          select: { recipeId: true },
+        },
+        profile: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    })
+
+    if (!recipe) {
+      return res.status(404).json({ error: "Receta no encontrada" })
+    }
+
+    res.json({
+      recipe: {
+        id: recipe.id.toString(),
+        title: recipe.title,
+        description: recipe.description,
+        ingredients: recipe.ingredients,
+        steps: recipe.steps,
+        timeMinutes: recipe.timeMinutes,
+        calories: recipe.calories,
+        imageUrl: recipe.imageUrl,
+        createdAt: recipe.createdAt,
+        author: recipe.profile,
+        isFavorite: recipe.favorites.length > 0,
+      },
+    })
+  } catch (error) {
+    console.error("GET /recipes/:id error", error)
+    res.status(500).json({ error: "Error obteniendo receta" })
+  }
+})
+// agregar favorita
+app.post("/recipes/:id/favorite", auth, profileContext, async (req, res) => {
+  try {
+    const profileId = req.profile.id
+    const recipeId = BigInt(req.params.id)
+
+    await prisma.favorite.upsert({
+      where: {
+        profileId_recipeId: {
+          profileId,
+          recipeId,
+        },
+      },
+      update: {},
+      create: {
+        profileId,
+        recipeId,
+      },
+    })
+
+    res.status(201).json({ success: true })
+  } catch (error) {
+    console.error("POST /recipes/:id/favorite error", error)
+    res.status(500).json({ error: "Error guardando favorita" })
+  }
+})
+
+//eliminar favorita
+app.delete("/recipes/:id/favorite", auth, profileContext, async (req, res) => {
+  try {
+    const profileId = req.profile.id
+    const recipeId = BigInt(req.params.id)
+
+    await prisma.favorite.deleteMany({
+      where: {
+        profileId,
+        recipeId,
+      },
+    })
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error("DELETE /recipes/:id/favorite error", error)
+    res.status(500).json({ error: "Error eliminando favorita" })
+  }
+})
+
+//ver favoritos
+app.get("/recipes/favorites", auth, profileContext, async (req, res) => {
+  try {
+    const profileId = req.profile.id
+
+    const favorites = await prisma.favorite.findMany({
+      where: { profileId },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        recipe: {
+          include: {
+            profile: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    const formatted = favorites.map((fav) => ({
+      id: fav.recipe.id.toString(),
+      title: fav.recipe.title,
+      description: fav.recipe.description,
+      ingredients: fav.recipe.ingredients,
+      steps: fav.recipe.steps,
+      timeMinutes: fav.recipe.timeMinutes,
+      calories: fav.recipe.calories,
+      imageUrl: fav.recipe.imageUrl,
+      createdAt: fav.recipe.createdAt,
+      author: fav.recipe.profile,
+      isFavorite: true,
+    }))
+
+    res.json({ recipes: formatted })
+  } catch (error) {
+    console.error("GET /recipes/favorites error", error)
+    res.status(500).json({ error: "Error obteniendo favoritas" })
+  }
+})
+
+
+
+
+
 
 const PORT = process.env.PORT || 4000;
 

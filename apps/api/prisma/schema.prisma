@@ -14,7 +14,7 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  profiles     Profile[]
+  profiles Profile[]
 }
 
 model Profile {
@@ -24,9 +24,10 @@ model Profile {
   avatarUrl String?
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   meals     Meal[]
   favorites Favorite[]
+  recipes   Recipe[]
 
   @@index([userId])
 }
@@ -39,8 +40,8 @@ model Meal {
   notes     String?
   createdAt DateTime @default(now())
 
-  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  items     MealItem[]
+  profile Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  items   MealItem[]
 
   @@index([profileId, mealDate])
 }
@@ -57,18 +58,29 @@ model MealItem {
   fat       Decimal? @db.Decimal(10, 2)
   createdAt DateTime @default(now())
 
-  meal      Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
 
   @@index([mealId])
 }
 
 model Recipe {
   id          BigInt   @id @default(autoincrement())
+  profileId   BigInt
   title       String
   description String?
+  ingredients Json
+  steps       Json
+  timeMinutes Int?
+  calories    Int?
+  imageUrl    String?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  favorites   Favorite[]
+  profile   Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  favorites Favorite[]
+
+  @@index([title])
+  @@index([createdAt])
 }
 
 model Favorite {
@@ -76,8 +88,9 @@ model Favorite {
   recipeId  BigInt
   createdAt DateTime @default(now())
 
-  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  recipe    Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  recipe  Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
   @@id([profileId, recipeId])
+  @@index([recipeId])
 }
