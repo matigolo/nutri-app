@@ -415,7 +415,8 @@ app.get("/foods/:fdcId", auth, profileContext, async (req, res) => {
 //POST recetas ALL
 app.post("/recipes", auth, profileContext, async (req, res) => {
   try {
-    const profileId = req.profile.id
+    const profileId = BigInt(req.profile.id)
+
     const {
       title,
       description,
@@ -445,7 +446,20 @@ app.post("/recipes", auth, profileContext, async (req, res) => {
       },
     })
 
-    res.status(201).json({ recipe })
+    res.status(201).json({
+      recipe: {
+        id: recipe.id.toString(),
+        title: recipe.title,
+        description: recipe.description,
+        ingredients: recipe.ingredients,
+        steps: recipe.steps,
+        timeMinutes: recipe.timeMinutes,
+        calories: recipe.calories,
+        imageUrl: recipe.imageUrl,
+        createdAt: recipe.createdAt,
+        profileId: recipe.profileId.toString(),
+      },
+    })
   } catch (error) {
     console.error("POST /recipes error", error)
     res.status(500).json({ error: "Error creando receta" })
@@ -605,7 +619,7 @@ app.delete("/recipes/:id/favorite", auth, profileContext, async (req, res) => {
 //ver favoritos
 app.get("/recipes/favorites", auth, profileContext, async (req, res) => {
   try {
-    const profileId = req.profile.id
+    const profileId = BigInt(req.profile.id)
 
     const favorites = await prisma.favorite.findMany({
       where: { profileId },
@@ -636,18 +650,19 @@ app.get("/recipes/favorites", auth, profileContext, async (req, res) => {
       calories: fav.recipe.calories,
       imageUrl: fav.recipe.imageUrl,
       createdAt: fav.recipe.createdAt,
-      author: fav.recipe.profile,
+      author: {
+        id: fav.recipe.profile.id.toString(),
+        name: fav.recipe.profile.name,
+      },
       isFavorite: true,
     }))
 
     res.json({ recipes: formatted })
   } catch (error) {
-    console.error("GET /recipes/favorites error", error)
+    console.error("GET /recipes/favorites error:", error)
     res.status(500).json({ error: "Error obteniendo favoritas" })
   }
 })
-
-
 
 
 
