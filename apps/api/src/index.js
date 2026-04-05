@@ -412,10 +412,10 @@ app.get("/foods/:fdcId", auth, profileContext, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-//POST recetas ALL
+// POST recetas
 app.post("/recipes", auth, profileContext, async (req, res) => {
   try {
-    const profileId = BigInt(req.profile.id)
+    const profileId = req.profileId
 
     const {
       title,
@@ -466,10 +466,10 @@ app.post("/recipes", auth, profileContext, async (req, res) => {
   }
 })
 
-//Buscar recetas
+// GET recetas
 app.get("/recipes", auth, profileContext, async (req, res) => {
   try {
-    const profileId = req.profile.id
+    const profileId = req.profileId
     const search = String(req.query.search || "").trim()
 
     const recipes = await prisma.recipe.findMany({
@@ -477,7 +477,6 @@ app.get("/recipes", auth, profileContext, async (req, res) => {
         ? {
             title: {
               contains: search,
-              mode: "insensitive",
             },
           }
         : {},
@@ -486,12 +485,8 @@ app.get("/recipes", auth, profileContext, async (req, res) => {
       },
       include: {
         favorites: {
-          where: {
-            profileId,
-          },
-          select: {
-            recipeId: true,
-          },
+          where: { profileId },
+          select: { recipeId: true },
         },
         profile: {
           select: {
@@ -512,7 +507,10 @@ app.get("/recipes", auth, profileContext, async (req, res) => {
       calories: recipe.calories,
       imageUrl: recipe.imageUrl,
       createdAt: recipe.createdAt,
-      author: recipe.profile,
+      author: {
+        id: recipe.profile.id.toString(),
+        name: recipe.profile.name,
+      },
       isFavorite: recipe.favorites.length > 0,
     }))
 
@@ -523,103 +521,10 @@ app.get("/recipes", auth, profileContext, async (req, res) => {
   }
 })
 
-//ver receta puntual
-app.get("/recipes/:id", auth, profileContext, async (req, res) => {
-  try {
-    const profileId = req.profile.id
-    const recipeId = BigInt(req.params.id)
-
-    const recipe = await prisma.recipe.findUnique({
-      where: { id: recipeId },
-      include: {
-        favorites: {
-          where: { profileId },
-          select: { recipeId: true },
-        },
-        profile: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    })
-
-    if (!recipe) {
-      return res.status(404).json({ error: "Receta no encontrada" })
-    }
-
-    res.json({
-      recipe: {
-        id: recipe.id.toString(),
-        title: recipe.title,
-        description: recipe.description,
-        ingredients: recipe.ingredients,
-        steps: recipe.steps,
-        timeMinutes: recipe.timeMinutes,
-        calories: recipe.calories,
-        imageUrl: recipe.imageUrl,
-        createdAt: recipe.createdAt,
-        author: recipe.profile,
-        isFavorite: recipe.favorites.length > 0,
-      },
-    })
-  } catch (error) {
-    console.error("GET /recipes/:id error", error)
-    res.status(500).json({ error: "Error obteniendo receta" })
-  }
-})
-// agregar favorita
-app.post("/recipes/:id/favorite", auth, profileContext, async (req, res) => {
-  try {
-    const profileId = req.profile.id
-    const recipeId = BigInt(req.params.id)
-
-    await prisma.favorite.upsert({
-      where: {
-        profileId_recipeId: {
-          profileId,
-          recipeId,
-        },
-      },
-      update: {},
-      create: {
-        profileId,
-        recipeId,
-      },
-    })
-
-    res.status(201).json({ success: true })
-  } catch (error) {
-    console.error("POST /recipes/:id/favorite error", error)
-    res.status(500).json({ error: "Error guardando favorita" })
-  }
-})
-
-//eliminar favorita
-app.delete("/recipes/:id/favorite", auth, profileContext, async (req, res) => {
-  try {
-    const profileId = req.profile.id
-    const recipeId = BigInt(req.params.id)
-
-    await prisma.favorite.deleteMany({
-      where: {
-        profileId,
-        recipeId,
-      },
-    })
-
-    res.json({ success: true })
-  } catch (error) {
-    console.error("DELETE /recipes/:id/favorite error", error)
-    res.status(500).json({ error: "Error eliminando favorita" })
-  }
-})
-
-//ver favoritos
+// GET favoritas
 app.get("/recipes/favorites", auth, profileContext, async (req, res) => {
   try {
-    const profileId = BigInt(req.profile.id)
+    const profileId = req.profileId
 
     const favorites = await prisma.favorite.findMany({
       where: { profileId },
@@ -663,6 +568,104 @@ app.get("/recipes/favorites", auth, profileContext, async (req, res) => {
     res.status(500).json({ error: "Error obteniendo favoritas" })
   }
 })
+
+// GET receta puntual
+app.get("/recipes/:id", auth, profileContext, async (req, res) => {
+  try {
+    const profileId = req.profileId
+    const recipeId = BigInt(req.params.id)
+
+    const recipe = await prisma.recipe.findUnique({
+      where: { id: recipeId },
+      include: {
+        favorites: {
+          where: { profileId },
+          select: { recipeId: true },
+        },
+        profile: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    })
+
+    if (!recipe) {
+      return res.status(404).json({ error: "Receta no encontrada" })
+    }
+
+    res.json({
+      recipe: {
+        id: recipe.id.toString(),
+        title: recipe.title,
+        description: recipe.description,
+        ingredients: recipe.ingredients,
+        steps: recipe.steps,
+        timeMinutes: recipe.timeMinutes,
+        calories: recipe.calories,
+        imageUrl: recipe.imageUrl,
+        createdAt: recipe.createdAt,
+        author: {
+          id: recipe.profile.id.toString(),
+          name: recipe.profile.name,
+        },
+        isFavorite: recipe.favorites.length > 0,
+      },
+    })
+  } catch (error) {
+    console.error("GET /recipes/:id error", error)
+    res.status(500).json({ error: "Error obteniendo receta" })
+  }
+})
+
+// POST favorita
+app.post("/recipes/:id/favorite", auth, profileContext, async (req, res) => {
+  try {
+    const profileId = req.profileId
+    const recipeId = BigInt(req.params.id)
+
+    await prisma.favorite.upsert({
+      where: {
+        profileId_recipeId: {
+          profileId,
+          recipeId,
+        },
+      },
+      update: {},
+      create: {
+        profileId,
+        recipeId,
+      },
+    })
+
+    res.status(201).json({ success: true })
+  } catch (error) {
+    console.error("POST /recipes/:id/favorite error", error)
+    res.status(500).json({ error: "Error guardando favorita" })
+  }
+})
+
+// DELETE favorita
+app.delete("/recipes/:id/favorite", auth, profileContext, async (req, res) => {
+  try {
+    const profileId = req.profileId
+    const recipeId = BigInt(req.params.id)
+
+    await prisma.favorite.deleteMany({
+      where: {
+        profileId,
+        recipeId,
+      },
+    })
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error("DELETE /recipes/:id/favorite error", error)
+    res.status(500).json({ error: "Error eliminando favorita" })
+  }
+})
+
 
 
 
