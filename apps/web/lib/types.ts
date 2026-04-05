@@ -82,6 +82,7 @@ export interface ChatMessage {
   content: string
   timestamp: string
 }
+//ApiRecipe es el tipo que uso en todo momento y el que tiene la misma forma que en el back
 export interface ApiRecipe {
   id: string
   title: string
@@ -99,6 +100,30 @@ export interface ApiRecipe {
   isFavorite: boolean
 }
 
+export interface CreateRecipeInput {
+  title: string
+  description?: string
+  ingredients: string[]
+  steps: string[]
+  timeMinutes?: number | null
+  calories?: number | null
+  imageUrl?: string
+}
+
+export interface CreatedRecipeResponse {
+  recipe: {
+    id: string
+    title: string
+    description: string | null
+    ingredients: string[]
+    steps: string[]
+    timeMinutes: number | null
+    calories: number | null
+    imageUrl: string | null
+    createdAt: string
+    profileId: string
+  }
+}
 export interface ApiRecipesResponse {
   recipes: ApiRecipe[]
 }

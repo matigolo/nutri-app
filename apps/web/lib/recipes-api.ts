@@ -3,10 +3,13 @@ import type {
   ApiRecipe,
   ApiRecipesResponse,
   ApiRecipeDetailResponse,
+  CreateRecipeInput,
+  CreatedRecipeResponse
+  
 } from "@/lib/types"
 
 const API_BASE = "http://localhost:4000"
-
+//EN ESTE ARCHIVO SE ENCUENTRAN FUNCIONE SQUE ACTIVAN LOS ENDPOINTS DE RECETAS(RECIPES)
 export async function getRecipes(search = ""): Promise<ApiRecipe[]> {
   const query = search.trim()
     ? `?search=${encodeURIComponent(search.trim())}`
@@ -69,4 +72,32 @@ export async function removeRecipeFromFavorites(recipeId: string): Promise<void>
   if (!res.ok) {
     throw new Error(data.error || "Error eliminando favorita")
   }
+}
+
+export async function createRecipe(input: CreateRecipeInput) {
+  const res = await apiFetch("http://localhost:4000/recipes", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  })
+
+  const text = await res.text()
+  let data: any = {}
+
+  try {
+    data = text ? JSON.parse(text) : {}
+  } catch {
+    data = {}
+  }
+
+  if (!res.ok) {
+    console.error("POST /recipes status:", res.status)
+    console.error("POST /recipes raw response:", text)
+    console.error("POST /recipes parsed response:", data)
+    throw new Error(data.error || `Error creando receta (${res.status})`)
+  }
+
+  return data.recipe
 }

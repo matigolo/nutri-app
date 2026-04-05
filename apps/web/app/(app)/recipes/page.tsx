@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Search, X, ArrowLeft, Heart, Clock, Flame } from "lucide-react"
+import { Search, X, ArrowLeft, Heart, Clock, Flame, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { ApiRecipe } from "@/lib/types"
+import type { ApiRecipe, CreateRecipeInput } from "@/lib/types"
 import { RecipeCard } from "@/components/recipe-card"
 import {
   getRecipes,
@@ -14,14 +15,31 @@ import {
   getRecipeById,
   addRecipeToFavorites,
   removeRecipeFromFavorites,
+  createRecipe,
 } from "@/lib/recipes-api"
 import {
   Drawer,
   DrawerContent,
   DrawerClose,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
 } from "@/components/ui/drawer"
 
 export default function RecipesPage() {
+//usestates para agregar receta
+  const [createOpen, setCreateOpen] = useState(false)
+  const [creatingRecipe, setCreatingRecipe] = useState(false)
+  const [createError, setCreateError] = useState("")
+
+  const [title, setTitle] = useState("")
+  const [description, setDescription] = useState("")
+  const [ingredientsText, setIngredientsText] = useState("")
+  const [stepsText, setStepsText] = useState("")
+  const [timeMinutes, setTimeMinutes] = useState("")
+  const [calories, setCalories] = useState("")
+  const [imageUrl, setImageUrl] = useState("")
+//usestates para navegar, search, favoritos
   const [search, setSearch] = useState("")
   const [recipes, setRecipes] = useState<ApiRecipe[]>([])
   const [favoriteRecipes, setFavoriteRecipes] = useState<ApiRecipe[]>([])
@@ -63,6 +81,73 @@ export default function RecipesPage() {
       setLoadingFavorites(false)
     }
   }
+  function resetCreateForm() {
+  setTitle("")
+  setDescription("")
+  setIngredientsText("")
+  setStepsText("")
+  setTimeMinutes("")
+  setCalories("")
+  setImageUrl("")
+  setCreateError("")
+}
+
+async function handleCreateRecipe(e: React.FormEvent) {
+  e.preventDefault()
+
+  try {
+    setCreatingRecipe(true)
+    setCreateError("")
+
+    const ingredients = ingredientsText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+
+    const steps = stepsText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+
+    if (!title.trim()) {
+      setCreateError("El título es obligatorio")
+      return
+    }
+
+    if (ingredients.length === 0) {
+      setCreateError("Tenés que agregar al menos un ingrediente")
+      return
+    }
+
+    if (steps.length === 0) {
+      setCreateError("Tenés que agregar al menos un paso")
+      return
+    }
+
+    const payload: CreateRecipeInput = {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      ingredients,
+      steps,
+      timeMinutes: timeMinutes.trim() ? Number(timeMinutes) : null,
+      calories: calories.trim() ? Number(calories) : null,
+      imageUrl: imageUrl.trim() || undefined,
+    }
+
+    await createRecipe(payload)
+
+    await fetchRecipes(search)
+    await fetchFavorites()
+
+    resetCreateForm()
+    setCreateOpen(false)
+  } catch (error) {
+    console.error(error)
+    setCreateError("No se pudo crear la receta")
+  } finally {
+    setCreatingRecipe(false)
+  }
+}
 
   useEffect(() => {
     fetchRecipes("")
@@ -156,11 +241,25 @@ export default function RecipesPage() {
 
   return (
     <div className="page-transition mx-auto max-w-lg px-4 pt-6">
-      <header className="mb-4">
-        <h1 className="text-xl font-bold text-foreground">Recetas</h1>
-        <p className="text-sm text-muted-foreground">
-          Descubrí recetas saludables
-        </p>
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Recetas</h1>
+          <p className="text-sm text-muted-foreground">
+            Descubrí recetas saludables
+          </p>
+        </div>
+
+        <Button
+          type="button"
+          onClick={() => {
+            setCreateError("")
+            setCreateOpen(true)
+          }}
+          className="rounded-xl"
+        >
+          <Plus className="mr-1 size-4" />
+          Nueva receta
+        </Button>
       </header>
 
       <div className="relative mb-4">
@@ -382,6 +481,164 @@ export default function RecipesPage() {
               </div>
             </>
           ) : null}
+        </DrawerContent>
+      </Drawer>
+      <Drawer
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open)
+          if (!open) {
+            resetCreateForm()
+          }
+        }}
+      >
+        <DrawerContent className="mx-auto max-h-[90dvh] max-w-lg">
+  <DrawerHeader className="px-4 pt-4 text-left">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <DrawerTitle className="text-lg font-bold text-foreground">
+          Nueva receta
+        </DrawerTitle>
+        <DrawerDescription className="text-sm text-muted-foreground">
+          Completá los datos para cargar una receta
+        </DrawerDescription>
+      </div>
+
+      <DrawerClose className="rounded-lg px-2 py-1 text-sm text-muted-foreground hover:text-foreground">
+        Cerrar
+      </DrawerClose>
+    </div>
+  </DrawerHeader>
+
+  <div className="overflow-y-auto px-4 pb-8">
+
+            <form onSubmit={handleCreateRecipe} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-foreground">
+                  Título
+                </label>
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Ej: Tostadas con palta y huevo"
+                  className="rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-foreground">
+                  Descripción
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Breve descripción de la receta"
+                  className="min-h-[90px] w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-foreground">
+                  Ingredientes
+                </label>
+                <textarea
+                  value={ingredientsText}
+                  onChange={(e) => setIngredientsText(e.target.value)}
+                  placeholder={`Un ingrediente por línea
+      Ej:
+      2 huevos
+      1/2 palta
+      2 tostadas integrales`}
+                  className="min-h-[120px] w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-foreground">
+                  Pasos
+                </label>
+                <textarea
+                  value={stepsText}
+                  onChange={(e) => setStepsText(e.target.value)}
+                  placeholder={`Un paso por línea
+      Ej:
+      Tostar el pan
+      Pisar la palta
+      Cocinar los huevos`}
+                  className="min-h-[120px] w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-foreground">
+                    Tiempo (min)
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={timeMinutes}
+                    onChange={(e) => setTimeMinutes(e.target.value)}
+                    placeholder="10"
+                    className="rounded-xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-foreground">
+                    Calorías
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={calories}
+                    onChange={(e) => setCalories(e.target.value)}
+                    placeholder="420"
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-foreground">
+                  URL de imagen
+                </label>
+                <Input
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="rounded-xl"
+                />
+              </div>
+
+              {createError ? (
+                <p className="text-sm text-destructive">{createError}</p>
+              ) : null}
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 rounded-xl"
+                  onClick={() => {
+                    resetCreateForm()
+                    setCreateOpen(false)
+                  }}
+                  disabled={creatingRecipe}
+                >
+                  Cancelar
+                </Button>
+
+                <Button
+                  type="submit"
+                  className="flex-1 rounded-xl"
+                  disabled={creatingRecipe}
+                >
+                  {creatingRecipe ? "Guardando..." : "Guardar receta"}
+                </Button>
+              </div>
+            </form>
+          </div>
         </DrawerContent>
       </Drawer>
     </div>
