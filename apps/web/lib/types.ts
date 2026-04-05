@@ -82,6 +82,30 @@ export interface ChatMessage {
   content: string
   timestamp: string
 }
+export interface ApiRecipe {
+  id: string
+  title: string
+  description: string | null
+  ingredients: string[]
+  steps: string[]
+  timeMinutes: number | null
+  calories: number | null
+  imageUrl: string | null
+  createdAt: string
+  author: {
+    id: string
+    name: string
+  }
+  isFavorite: boolean
+}
+
+export interface ApiRecipesResponse {
+  recipes: ApiRecipe[]
+}
+
+export interface ApiRecipeDetailResponse {
+  recipe: ApiRecipe
+}
 
 export type MealType = MealEntry["type"]
 export type FoodUnit = MealItem["unit"]
