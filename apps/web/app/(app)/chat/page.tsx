@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { SendHorizontal, Trash2 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ChatMessage } from "@/lib/types"
+import { apiFetch } from "@/lib/api"
 
 export default function ChatPage() {
   const { messages, addMessage, clearMessages } = useChatContext()
@@ -22,48 +23,49 @@ export default function ChatPage() {
   }, [messages, isTyping])
 
   async function handleSend() {
-    const trimmed = input.trim()
-    if (!trimmed || isTyping) return
+  const trimmed = input.trim()
+  if (!trimmed || isTyping) return
 
-    const userMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      role: "user",
-      content: trimmed,
+  const userMsg: ChatMessage = {
+    id: `msg-${Date.now()}`,
+    role: "user",
+    content: trimmed,
+    timestamp: new Date().toISOString(),
+  }
+
+  addMessage(userMsg)
+  setInput("")
+  setIsTyping(true)
+
+  try {
+    const res = await apiFetch("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({ message: trimmed }),
+    })
+
+    const data = await res.json()
+
+    const aiMsg: ChatMessage = {
+      id: `msg-${Date.now()}-ai`,
+      role: "assistant",
+      content: res.ok
+        ? data.reply || "No pude responder en este momento."
+        : data.error || "Hubo un error. Intentá de nuevo.",
       timestamp: new Date().toISOString(),
     }
 
-    addMessage(userMsg)
-    setInput("")
-    setIsTyping(true)
-
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed }),
-      })
-
-      const data = await res.json()
-
-      const aiMsg: ChatMessage = {
-        id: `msg-${Date.now()}-ai`,
-        role: "assistant",
-        content: data.reply || "Hubo un error. Intenta de nuevo.",
-        timestamp: new Date().toISOString(),
-      }
-
-      addMessage(aiMsg)
-    } catch {
-      addMessage({
-        id: `msg-${Date.now()}-err`,
-        role: "assistant",
-        content: "Error de conexion. Intenta de nuevo.",
-        timestamp: new Date().toISOString(),
-      })
-    } finally {
-      setIsTyping(false)
-    }
+    addMessage(aiMsg)
+  } catch {
+    addMessage({
+      id: `msg-${Date.now()}-err`,
+      role: "assistant",
+      content: "Error de conexión. Intentá de nuevo.",
+      timestamp: new Date().toISOString(),
+    })
+  } finally {
+    setIsTyping(false)
   }
+}
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
