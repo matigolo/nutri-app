@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useProfiles } from "@/lib/app-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -40,6 +41,7 @@ export default function RecipesPage() {
   const [calories, setCalories] = useState("")
   const [imageUrl, setImageUrl] = useState("")
 //usestates para navegar, search, favoritos
+  const { activeProfile } = useProfiles()
   const [search, setSearch] = useState("")
   const [recipes, setRecipes] = useState<ApiRecipe[]>([])
   const [favoriteRecipes, setFavoriteRecipes] = useState<ApiRecipe[]>([])
@@ -54,33 +56,58 @@ export default function RecipesPage() {
   const [favoritesError, setFavoritesError] = useState("")
   const [detailError, setDetailError] = useState("")
 
-  async function fetchRecipes(currentSearch = "") {
-    try {
-      setLoadingRecipes(true)
-      setRecipesError("")
-      const data = await getRecipes(currentSearch)
-      setRecipes(data)
-    } catch (error) {
-      console.error(error)
-      setRecipesError("No se pudieron cargar las recetas")
-    } finally {
-      setLoadingRecipes(false)
-    }
-  }
+  async function fetchRecipes(currentSearch = "", profileIdArg?: string) {
+  const requestProfileId = profileIdArg || activeProfile?.id
+  if (!requestProfileId) return
 
-  async function fetchFavorites() {
-    try {
-      setLoadingFavorites(true)
-      setFavoritesError("")
-      const data = await getFavoriteRecipes()
-      setFavoriteRecipes(data)
-    } catch (error) {
-      console.error(error)
-      setFavoritesError("No se pudieron cargar los favoritos")
-    } finally {
-      setLoadingFavorites(false)
-    }
+  try {
+    setLoadingRecipes(true)
+    setRecipesError("")
+
+    const data = await getRecipes(currentSearch)
+
+    if (activeProfile?.id !== requestProfileId) return
+
+    setRecipes(data)
+  } catch (error) {
+    console.error(error)
+
+    if (activeProfile?.id !== requestProfileId) return
+
+    setRecipesError("No se pudieron cargar las recetas")
+  } finally {
+    if (activeProfile?.id !== requestProfileId) return
+
+    setLoadingRecipes(false)
   }
+}
+
+async function fetchFavorites(profileIdArg?: string) {
+  const requestProfileId = profileIdArg || activeProfile?.id
+  if (!requestProfileId) return
+
+  try {
+    setLoadingFavorites(true)
+    setFavoritesError("")
+
+    const data = await getFavoriteRecipes()
+
+    if (activeProfile?.id !== requestProfileId) return
+
+    setFavoriteRecipes(data)
+  } catch (error) {
+    console.error(error)
+
+    if (activeProfile?.id !== requestProfileId) return
+
+    setFavoritesError("No se pudieron cargar los favoritos")
+  } finally {
+    if (activeProfile?.id !== requestProfileId) return
+
+    setLoadingFavorites(false)
+  }
+}
+
   function resetCreateForm() {
   setTitle("")
   setDescription("")
@@ -148,19 +175,29 @@ async function handleCreateRecipe(e: React.FormEvent) {
     setCreatingRecipe(false)
   }
 }
+  useEffect(() => {
+    if (!activeProfile?.id) return
+
+    setRecipes([])
+    setFavoriteRecipes([])
+    setSelectedRecipe(null)
+    setRecipesError("")
+    setFavoritesError("")
+    setDetailError("")
+
+    fetchRecipes(search, activeProfile.id)
+    fetchFavorites(activeProfile.id)
+  }, [activeProfile?.id])
 
   useEffect(() => {
-    fetchRecipes("")
-    fetchFavorites()
-  }, [])
+  if (!activeProfile?.id) return
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      fetchRecipes(search)
-    }, 400)
+  const timeout = setTimeout(() => {
+    fetchRecipes(search, activeProfile.id)
+  }, 400)
 
-    return () => clearTimeout(timeout)
-  }, [search])
+  return () => clearTimeout(timeout)
+}, [search, activeProfile?.id])
 
   async function handleOpenRecipe(recipeId: string) {
     try {

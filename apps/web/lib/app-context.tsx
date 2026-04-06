@@ -129,7 +129,7 @@ const AVATAR_COLORS = [
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [profiles, setProfiles] = useState<Profile[]>([])
-  const [activeProfile, setActiveProfile] = useState<Profile | null>(null)
+  const [activeProfile, setActiveProfileState] = useState<Profile | null>(null)
   const [meals, setMeals] = useState<MealEntry[]>([])
   const [weights, setWeights] = useState<WeightRecord[]>([])
   const [favorites, setFavorites] = useState<string[]>([])
@@ -137,16 +137,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [addMealDrawerOpen, setAddMealDrawerOpen] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
-  useEffect(() => {
-    setIsLoggedIn(loadFromStorage("nutri-logged-in", false))
-    setProfiles(loadFromStorage("nutri-profiles", defaultProfiles))
-    setActiveProfile(loadFromStorage("nutri-active-profile", null))
-    setMeals(loadFromStorage("nutri-meals", []))
-    setWeights(loadFromStorage("nutri-weights", []))
-    setFavorites(loadFromStorage("nutri-favorites", []))
-    setMessages(loadFromStorage("nutri-messages", []))
-    setHydrated(true)
-  }, [])
+  const setActiveProfile = useCallback((profile: Profile | null) => {
+  setActiveProfileState(profile)
+
+  if (typeof window !== "undefined") {
+    if (profile) {
+      localStorage.setItem("activeProfileId", String(profile.id))
+    } else {
+      localStorage.removeItem("activeProfileId")
+    }
+  }
+}, [])
+
+useEffect(() => {
+  setIsLoggedIn(loadFromStorage("nutri-logged-in", false))
+  setProfiles(loadFromStorage("nutri-profiles", defaultProfiles))
+
+  const storedActiveProfile = loadFromStorage<Profile | null>("nutri-active-profile", null)
+  setActiveProfileState(storedActiveProfile)
+
+  if (typeof window !== "undefined") {
+    if (storedActiveProfile?.id) {
+      localStorage.setItem("activeProfileId", String(storedActiveProfile.id))
+    } else {
+      localStorage.removeItem("activeProfileId")
+    }
+  }
+
+  setMeals(loadFromStorage("nutri-meals", []))
+  setWeights(loadFromStorage("nutri-weights", []))
+  setFavorites(loadFromStorage("nutri-favorites", []))
+  setMessages(loadFromStorage("nutri-messages", []))
+  setHydrated(true)
+}, [])
 
   useEffect(() => { if (hydrated) saveToStorage("nutri-logged-in", isLoggedIn) }, [isLoggedIn, hydrated])
   useEffect(() => { if (hydrated) saveToStorage("nutri-profiles", profiles) }, [profiles, hydrated])
