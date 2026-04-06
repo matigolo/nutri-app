@@ -29,7 +29,7 @@ app.get("/health", (req, res) => {
 //llamada para registrar un nuevo usuario, recibe email, password y opcionalmente el nombre del primer perfil
 app.post("/auth/register", async (req, res) => {
   try {
-    const { email, password, firstProfileName } = req.body;
+    const { email, password, firstProfileName, firstProfileGoal } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: "email y password son requeridos" });
@@ -47,7 +47,17 @@ app.post("/auth/register", async (req, res) => {
         email,
         passwordHash,
         profiles: firstProfileName
-          ? { create: [{ name: firstProfileName }] }
+          ? {
+              create: [
+                {
+                  name: firstProfileName.trim(),
+                  goal:
+                    firstProfileGoal && String(firstProfileGoal).trim()
+                      ? String(firstProfileGoal).trim()
+                      : null,
+                },
+              ],
+            }
           : undefined,
       },
       include: { profiles: true },
@@ -56,7 +66,12 @@ app.post("/auth/register", async (req, res) => {
     return res.status(201).json({
       id: user.id.toString?.() ?? user.id,
       email: user.email,
-      profiles: user.profiles?.map((p) => ({ id: p.id.toString?.() ?? p.id, name: p.name })) ?? [],
+      profiles:
+        user.profiles?.map((p) => ({
+          id: p.id.toString?.() ?? p.id,
+          name: p.name,
+          goal: p.goal,
+        })) ?? [],
     });
   } catch (e) {
     console.error(e);
@@ -113,12 +128,13 @@ app.get("/me", auth, async (req, res) => {
 //POST para crear un perfil -- verifica tambien que no exista un perfil con el mismo nombre asociado al mismo usuario
 app.post("/profiles", auth, async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, goal } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ error: "name es requerido" });
     }
     const cleanName = name.trim();
+    const cleanGoal = goal && String(goal).trim() ? String(goal).trim() : null
     const existingprofile = await prisma.profile.findFirst({ // me fijo que exista un perfil en la misma cuenta (con userID) y que se llame igual
         where: {
             name: cleanName,
@@ -130,7 +146,8 @@ app.post("/profiles", auth, async (req, res) => {
     }
     const profile = await prisma.profile.create({
       data: {
-        name: name.trim(),
+        name: cleanName,
+        goal: cleanGoal,
         userId: req.userId,
       },
     });
@@ -139,8 +156,9 @@ app.post("/profiles", auth, async (req, res) => {
       id: profile.id.toString(),
       userId: profile.userId.toString(),
       name: profile.name,
+      goal: profile.goal,
       createdAt: profile.createdAt,
-    });
+  });
   } catch (err) {
     console.error("ERROR /profiles:", err);
     return res.status(500).json({ error: err.message });
@@ -158,6 +176,7 @@ app.get("/profiles", auth, async (req, res) =>  {
             id: true,
             userId: true,
             name: true,
+            goal: true,
             avatarUrl:true,
             createdAt: true,
         },
@@ -167,6 +186,7 @@ app.get("/profiles", auth, async (req, res) =>  {
         id: p.id.toString(),
         userId: p.userId.toString(),
         name: p.name,
+        goal: p.goal,
         avatarUrl: p.avatarUrl,
         createdAt: p.createdAt,})),
     })}

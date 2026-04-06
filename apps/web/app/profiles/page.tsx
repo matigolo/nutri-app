@@ -17,7 +17,15 @@ const AVATAR_COLORS = [
   "oklch(0.70 0.12 200)",
   "oklch(0.65 0.15 150)",
 ]
-
+const PROFILE_GOALS = [
+  "Bajar grasa",
+  "Mantener peso",
+  "Ganar masa muscular",
+  "Comer más saludable",
+  "Mejorar hábitos",
+  "Aumentar proteína",
+  "Otro",
+]
 export default function ProfilesPage() {
   const router = useRouter()
   const {activeProfile, setActiveProfile, addProfile, removeProfile, logout } = useProfiles()
@@ -25,6 +33,7 @@ export default function ProfilesPage() {
   const [managing, setManaging] = useState(false)
   const [addingNew, setAddingNew] = useState(false)
   const [newName, setNewName] = useState("")
+  const [newGoal, setNewGoal] = useState("")
 
     useEffect(() => { //me recomendó IA para expulsar si alguien entra sin token
   const token = localStorage.getItem("token")
@@ -57,23 +66,47 @@ export default function ProfilesPage() {
     router.push("/home")
   }
 
-  async function handleAddProfile() { //hago el POST para agregar perfil
-    const res = await apiFetch("http://localhost:4000/profiles", { //endpoint
-          body: JSON.stringify({ name: newName.trim() }),
-        })
-      const data = await res.json()
+  async function handleAddProfile() {
+  if (!newName.trim()) return
+
+  if (!newGoal) {
+    alert("Seleccioná un objetivo para el perfil")
+    return
+  }
+
+  const token = localStorage.getItem("token") 
+
+  if (!token) {
+    alert("No hay sesión activa")
+    return
+  }
+
+  const res = await fetch("http://localhost:4000/profiles", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: newName.trim(),
+      goal: newGoal,
+    }),
+  })
+
+  const data = await res.json()
 
   if (!res.ok) {
     console.log("Error create profile:", data)
+    alert(data.error || "No se pudo crear el perfil")
     return
   }
 
   setNewName("")
+  setNewGoal("")
   setAddingNew(false)
 
-  // ✅ refrescá lista
   await fetchProfiles()
-  }
+}
   
 
 
@@ -159,9 +192,16 @@ function handleLogout() {
                   </button>
                 )}
               </div>
-              <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-                {profile.name}
-              </span>
+              <div className="text-center">
+                <span className="block text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                  {profile.name}
+                </span>
+                {profile.goal ? (
+                  <span className="block text-[11px] text-muted-foreground/70">
+                    {profile.goal}
+                  </span>
+                ) : null}
+              </div>
             </button>
           ))}
 
@@ -181,39 +221,63 @@ function handleLogout() {
 
         {/* Add Profile Form */}
         {addingNew && (
-          <div className="mt-8 flex items-center justify-center gap-2">
+          <div className="mt-8 mx-auto max-w-sm space-y-3">
             <Input
               autoFocus
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleAddProfile()
-                if (e.key === "Escape") { setAddingNew(false); setNewName("") }
+                if (e.key === "Escape") {
+                  setAddingNew(false)
+                  setNewName("")
+                  setNewGoal("")
+                }
               }}
               placeholder="Nombre del perfil"
-              className="h-10 max-w-48 rounded-xl border-border bg-card text-foreground"
+              className="h-10 rounded-xl border-border bg-card text-foreground"
               maxLength={20}
             />
-            <Button
-              size="icon"
-              onClick={handleAddProfile}
-              className="size-10 rounded-xl bg-foreground text-background hover:bg-foreground/90"
-              aria-label="Confirmar"
+
+            <select
+              value={newGoal}
+              onChange={(e) => setNewGoal(e.target.value)}
+              className="h-10 w-full rounded-xl border border-border bg-card px-3 text-sm text-foreground outline-none"
             >
-              <Check className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => { setAddingNew(false); setNewName("") }}
-              className="size-10 rounded-xl"
-              aria-label="Cancelar"
-            >
-              <X className="size-4" />
-            </Button>
+              <option value="">Seleccionar objetivo</option>
+              {PROFILE_GOALS.map((goal) => (
+                <option key={goal} value={goal}>
+                  {goal}
+                </option>
+              ))}
+            </select>
+
+            <div className="flex items-center justify-center gap-2">
+              <Button
+                size="icon"
+                onClick={handleAddProfile}
+                className="size-10 rounded-xl bg-foreground text-background hover:bg-foreground/90"
+                aria-label="Confirmar"
+              >
+                <Check className="size-4" />
+              </Button>
+
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  setAddingNew(false)
+                  setNewName("")
+                  setNewGoal("")
+                }}
+                className="size-10 rounded-xl"
+                aria-label="Cancelar"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
           </div>
         )}
-
         {/* Actions */}
         <div className="mt-10 flex flex-col items-center gap-3">
           <Button

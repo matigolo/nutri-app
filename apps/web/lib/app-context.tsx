@@ -9,7 +9,7 @@ interface ProfileContextType {
   profiles: Profile[]
   activeProfile: Profile | null
   setActiveProfile: (profile: Profile) => void
-  addProfile: (name: string) => void
+  addProfile: (name: string, goal: string | null) => void
   removeProfile: (id: string) => void
   logout: () => void
   isLoggedIn: boolean
@@ -179,15 +179,18 @@ useEffect(() => {
   useEffect(() => { if (hydrated) saveToStorage("nutri-favorites", favorites) }, [favorites, hydrated])
   useEffect(() => { if (hydrated) saveToStorage("nutri-messages", messages) }, [messages, hydrated])
 
-  const addProfile = useCallback((name: string) => {
+  const addProfile = useCallback((name: string, goal: string | null) => {
     if (profiles.length >= 5) return
+
     const newProfile: Profile = {
       id: `p-${Date.now()}`,
-      userId: String() ,
+      userId: "",
       name,
+      goal,
       avatarUrl: "",
       createdAt: new Date(),
     }
+
     setProfiles((prev) => [...prev, newProfile])
   }, [profiles.length])
 

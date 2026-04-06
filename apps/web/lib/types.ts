@@ -2,6 +2,7 @@ export interface Profile {
   id: string
   userId: string
   name: string
+  goal: string | null
   avatarUrl: string,
   createdAt: Date
 }

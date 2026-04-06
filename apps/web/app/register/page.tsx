@@ -8,6 +8,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff } from "lucide-react"
 
+const PROFILE_GOALS = [
+  "Bajar grasa",
+  "Mantener peso",
+  "Ganar masa muscular",
+  "Comer más saludable",
+  "Mejorar hábitos",
+  "Aumentar proteína",
+  "Otro",
+]
+
 export default function RegisterPage() {
   const router = useRouter()
   const { setIsLoggedIn } = useProfiles()
@@ -18,6 +28,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [firstProfileGoal, setFirstProfileGoal] = useState("")
 
   async function handleSubmit(e: React.FormEvent) {
   e.preventDefault()
@@ -35,6 +46,10 @@ export default function RegisterPage() {
     setError("La contraseña debe tener al menos 6 caracteres")
     return
   }
+  if (!firstProfileGoal) {
+  setError("Seleccioná un objetivo para tu perfil")
+  return
+}
 
   setLoading(true)
   try {
@@ -45,6 +60,7 @@ export default function RegisterPage() {
         email: email.trim(),
         password: password.trim(),
         firstProfileName: name.trim(),
+        firstProfileGoal,
       }),
     })
 
@@ -89,6 +105,24 @@ export default function RegisterPage() {
               className="h-11 rounded-xl border-border bg-card text-foreground placeholder:text-muted-foreground"
               autoComplete="name"
             />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">
+              Objetivo del perfil
+            </label>
+
+            <select
+              value={firstProfileGoal}
+              onChange={(e) => setFirstProfileGoal(e.target.value)}
+              className="h-10 w-full rounded-xl border border-border bg-card px-3 text-sm text-foreground outline-none"
+            >
+              <option value="">Seleccionar objetivo</option>
+              {PROFILE_GOALS.map((goal) => (
+                <option key={goal} value={goal}>
+                  {goal}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex flex-col gap-2">
