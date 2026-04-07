@@ -1,14 +1,28 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
-import type { Profile, MealEntry, WeightRecord, ChatMessage } from "./types"
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  type ReactNode,
+} from "react"
+import type {
+  Profile,
+  MealEntry,
+  WeightRecord,
+  ChatMessage,
+  MealItem,
+} from "./types"
 import { defaultProfiles } from "./mock-data"
+import { apiFetch } from "./api"
 
 // --- Profile Context ---
 interface ProfileContextType {
   profiles: Profile[]
   activeProfile: Profile | null
-  setActiveProfile: (profile: Profile) => void
+  setActiveProfile: (profile: Profile | null) => void
   addProfile: (name: string, goal: string | null) => void
   removeProfile: (id: string) => void
   logout: () => void
@@ -27,8 +41,10 @@ export function useProfiles() {
 // --- Meal Context ---
 interface MealContextType {
   meals: MealEntry[]
-  addMeal: (meal: MealEntry) => void
+  loadingMeals: boolean
+  addMeal: (meal: MealEntry) => Promise<boolean>
   removeMeal: (id: string) => void
+  refreshMeals: () => Promise<void>
   getMealsByDate: (date: string) => MealEntry[]
   recentFoodIds: string[]
 }
@@ -86,10 +102,12 @@ export function useChat() {
   return ctx
 }
 
-// --- UI Context (for global drawer state) ---
+// --- UI Context ---
 interface UIContextType {
   addMealDrawerOpen: boolean
   setAddMealDrawerOpen: (v: boolean) => void
+  selectedDate: string
+  setSelectedDate: (date: string) => void
 }
 
 const UIContext = createContext<UIContextType | null>(null)
@@ -100,7 +118,7 @@ export function useUI() {
   return ctx
 }
 
-// --- Combined Provider ---
+// --- Helpers ---
 function loadFromStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback
   try {
@@ -115,107 +133,269 @@ function saveToStorage(key: string, value: unknown) {
   if (typeof window === "undefined") return
   try {
     localStorage.setItem(key, JSON.stringify(value))
-  } catch { /* ignore */ }
+  } catch {
+    // ignore
+  }
 }
 
-const AVATAR_COLORS = [
-  "oklch(0.985 0 0)",
-  "oklch(0.70 0 0)",
-  "oklch(0.50 0 0)",
-  "oklch(0.80 0.10 80)",
-  "oklch(0.70 0.15 200)",
-]
+function mapBackendMealToMealEntry(meal: any): MealEntry {
+  const mealDateRaw =
+    typeof meal.mealDate === "string"
+      ? meal.mealDate
+      : new Date(meal.mealDate).toISOString()
+
+  const mealDate = mealDateRaw.slice(0, 10)
+  const mealTime = mealDateRaw.includes("T") ? mealDateRaw.slice(11, 16) : undefined
+
+  const items: MealItem[] = Array.isArray(meal.items)
+    ? meal.items.map((item: any) => ({
+        id: String(item.id),
+        name: item.name ?? "",
+        quantity:
+          typeof item.quantity === "number"
+            ? item.quantity
+            : Number(item.quantity ?? 0),
+        unit: (item.unit ?? "gramos") as MealItem["unit"],
+        macros: {
+          kcal: Number(item.calories ?? 0),
+          protein: Number(item.protein ?? 0),
+          carbs: Number(item.carbs ?? 0),
+          fat: Number(item.fat ?? 0),
+        },
+        advancedOpen: false,
+      }))
+    : []
+
+  return {
+    id: String(meal.id),
+    profileId: String(meal.profileId),
+    date: mealDate,
+    type: meal.mealType as MealEntry["type"],
+    time: mealTime,
+    notes: meal.notes ?? undefined,
+    items,
+  }
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [activeProfile, setActiveProfileState] = useState<Profile | null>(null)
   const [meals, setMeals] = useState<MealEntry[]>([])
+  const [loadingMeals, setLoadingMeals] = useState(false)
   const [weights, setWeights] = useState<WeightRecord[]>([])
   const [favorites, setFavorites] = useState<string[]>([])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [addMealDrawerOpen, setAddMealDrawerOpen] = useState(false)
   const [hydrated, setHydrated] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  )
 
   const setActiveProfile = useCallback((profile: Profile | null) => {
-  setActiveProfileState(profile)
+    setActiveProfileState(profile)
 
-  if (typeof window !== "undefined") {
-    if (profile) {
-      localStorage.setItem("activeProfileId", String(profile.id))
-    } else {
-      localStorage.removeItem("activeProfileId")
+    if (typeof window !== "undefined") {
+      if (profile) {
+        localStorage.setItem("activeProfileId", String(profile.id))
+      } else {
+        localStorage.removeItem("activeProfileId")
+      }
     }
-  }
-}, [])
+  }, [])
 
-useEffect(() => {
-  setIsLoggedIn(loadFromStorage("nutri-logged-in", false))
-  setProfiles(loadFromStorage("nutri-profiles", defaultProfiles))
+  useEffect(() => {
+    setIsLoggedIn(loadFromStorage("nutri-logged-in", false))
+    setProfiles(loadFromStorage("nutri-profiles", defaultProfiles))
 
-  const storedActiveProfile = loadFromStorage<Profile | null>("nutri-active-profile", null)
-  setActiveProfileState(storedActiveProfile)
+    const storedActiveProfile = loadFromStorage<Profile | null>(
+      "nutri-active-profile",
+      null
+    )
+    setActiveProfileState(storedActiveProfile)
 
-  if (typeof window !== "undefined") {
-    if (storedActiveProfile?.id) {
-      localStorage.setItem("activeProfileId", String(storedActiveProfile.id))
-    } else {
-      localStorage.removeItem("activeProfileId")
-    }
-  }
-
-  setMeals(loadFromStorage("nutri-meals", []))
-  setWeights(loadFromStorage("nutri-weights", []))
-  setFavorites(loadFromStorage("nutri-favorites", []))
-  setMessages(loadFromStorage("nutri-messages", []))
-  setHydrated(true)
-}, [])
-
-  useEffect(() => { if (hydrated) saveToStorage("nutri-logged-in", isLoggedIn) }, [isLoggedIn, hydrated])
-  useEffect(() => { if (hydrated) saveToStorage("nutri-profiles", profiles) }, [profiles, hydrated])
-  useEffect(() => { if (hydrated) saveToStorage("nutri-active-profile", activeProfile) }, [activeProfile, hydrated])
-  useEffect(() => { if (hydrated) saveToStorage("nutri-meals", meals) }, [meals, hydrated])
-  useEffect(() => { if (hydrated) saveToStorage("nutri-weights", weights) }, [weights, hydrated])
-  useEffect(() => { if (hydrated) saveToStorage("nutri-favorites", favorites) }, [favorites, hydrated])
-  useEffect(() => { if (hydrated) saveToStorage("nutri-messages", messages) }, [messages, hydrated])
-
-  const addProfile = useCallback((name: string, goal: string | null) => {
-    if (profiles.length >= 5) return
-
-    const newProfile: Profile = {
-      id: `p-${Date.now()}`,
-      userId: "",
-      name,
-      goal,
-      avatarUrl: "",
-      createdAt: new Date(),
+    if (typeof window !== "undefined") {
+      if (storedActiveProfile?.id) {
+        localStorage.setItem("activeProfileId", String(storedActiveProfile.id))
+      } else {
+        localStorage.removeItem("activeProfileId")
+      }
     }
 
-    setProfiles((prev) => [...prev, newProfile])
-  }, [profiles.length])
+    setWeights(loadFromStorage("nutri-weights", []))
+    setFavorites(loadFromStorage("nutri-favorites", []))
+    setMessages(loadFromStorage("nutri-messages", []))
+    setHydrated(true)
+  }, [])
 
-  const removeProfile = useCallback((id: string) => {
-    setProfiles((prev) => prev.filter((p) => p.id !== id))
-    if (activeProfile?.id === id) setActiveProfile(null)
-  }, [activeProfile?.id])
+  useEffect(() => {
+    if (hydrated) saveToStorage("nutri-logged-in", isLoggedIn)
+  }, [isLoggedIn, hydrated])
+
+  useEffect(() => {
+    if (hydrated) saveToStorage("nutri-profiles", profiles)
+  }, [profiles, hydrated])
+
+  useEffect(() => {
+    if (hydrated) saveToStorage("nutri-active-profile", activeProfile)
+  }, [activeProfile, hydrated])
+
+  useEffect(() => {
+    if (hydrated) saveToStorage("nutri-weights", weights)
+  }, [weights, hydrated])
+
+  useEffect(() => {
+    if (hydrated) saveToStorage("nutri-favorites", favorites)
+  }, [favorites, hydrated])
+
+  useEffect(() => {
+    if (hydrated) saveToStorage("nutri-messages", messages)
+  }, [messages, hydrated])
+
+  const addProfile = useCallback(
+    (name: string, goal: string | null) => {
+      if (profiles.length >= 5) return
+
+      const newProfile: Profile = {
+        id: `p-${Date.now()}`,
+        userId: "",
+        name,
+        goal,
+        avatarUrl: "",
+        createdAt: new Date(),
+      }
+
+      setProfiles((prev) => [...prev, newProfile])
+    },
+    [profiles.length]
+  )
+
+  const removeProfile = useCallback(
+    (id: string) => {
+      setProfiles((prev) => prev.filter((p) => p.id !== id))
+      if (activeProfile?.id === id) setActiveProfile(null)
+    },
+    [activeProfile?.id, setActiveProfile]
+  )
 
   const logout = useCallback(() => {
     setIsLoggedIn(false)
     setActiveProfile(null)
-  }, [])
+    setMeals([])
+  }, [setActiveProfile])
 
-  const addMeal = useCallback((meal: MealEntry) => {
-    setMeals((prev) => [...prev, meal])
-  }, [])
+  const refreshMeals = useCallback(async () => {
+    if (!activeProfile?.id || !isLoggedIn) {
+      setMeals([])
+      return
+    }
+
+    try {
+      setLoadingMeals(true)
+
+      const res = await apiFetch("http://localhost:4000/meals", {
+        method: "GET",
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        console.error("GET /meals error:", data)
+        setMeals([])
+        return
+      }
+
+      const mappedMeals = Array.isArray(data.meals)
+        ? data.meals.map(mapBackendMealToMealEntry)
+        : []
+
+      setMeals(mappedMeals)
+    } catch (error) {
+      console.error("refreshMeals error:", error)
+      setMeals([])
+    } finally {
+      setLoadingMeals(false)
+    }
+  }, [activeProfile?.id, isLoggedIn])
+
+  const addMeal = useCallback(
+    async (meal: MealEntry) => {
+      try {
+        const mealDate = meal.time
+          ? new Date(`${meal.date}T${meal.time}`)
+          : new Date(`${meal.date}T12:00`)
+
+        const payload = {
+          mealType: meal.type,
+          mealDate: mealDate.toISOString(),
+          notes: meal.notes?.trim() || null,
+          items: meal.items.map((item) => ({
+            name: item.name.trim(),
+            quantity: item.quantity,
+            unit: item.unit,
+            calories: item.macros.kcal,
+            protein: item.macros.protein,
+            carbs: item.macros.carbs,
+            fat: item.macros.fat,
+          })),
+        }
+
+        const res = await apiFetch("http://localhost:4000/meals", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        })
+
+        const text = await res.text()
+        let data: any = {}
+
+        try {
+          data = text ? JSON.parse(text) : {}
+        } catch {
+          data = {}
+        }
+
+        if (!res.ok) {
+          console.error("POST /meals status:", res.status)
+          console.error("POST /meals raw response:", text)
+          console.error("POST /meals parsed response:", data)
+          return false
+        }
+
+        await refreshMeals()
+        return true
+      } catch (error) {
+        console.error("addMeal error:", error)
+        return false
+      }
+    },
+    [refreshMeals]
+  )
 
   const removeMeal = useCallback((id: string) => {
+    console.warn("removeMeal todavía no está conectado al backend:", id)
     setMeals((prev) => prev.filter((m) => m.id !== id))
   }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
+
+    if (!isLoggedIn || !activeProfile?.id) {
+      setMeals([])
+      return
+    }
+
+    refreshMeals()
+  }, [hydrated, isLoggedIn, activeProfile?.id, refreshMeals])
 
   const getMealsByDate = useCallback(
     (date: string) => {
       if (!activeProfile) return []
-      return meals.filter((m) => m.date === date && m.profileId === activeProfile.id)
+      return meals.filter(
+        (m) => m.date === date && m.profileId === activeProfile.id
+      )
     },
     [meals, activeProfile]
   )
@@ -224,9 +404,9 @@ useEffect(() => {
     .filter((m) => m.profileId === activeProfile?.id)
     .flatMap((m) => m.items)
     .filter((i) => i.id)
-    .map((i) => i.id!)
+    .map((i) => i.id)
     .filter((v, i, a) => a.indexOf(v) === i)
-    .slice(-5)
+    .slice(-5) as string[]
 
   const addWeight = useCallback((record: WeightRecord) => {
     setWeights((prev) => {
@@ -240,14 +420,18 @@ useEffect(() => {
   const getWeightByDate = useCallback(
     (date: string) => {
       if (!activeProfile) return undefined
-      return weights.find((w) => w.date === date && w.profileId === activeProfile.id)
+      return weights.find(
+        (w) => w.date === date && w.profileId === activeProfile.id
+      )
     },
     [weights, activeProfile]
   )
 
   const toggleFavorite = useCallback((recipeId: string) => {
     setFavorites((prev) =>
-      prev.includes(recipeId) ? prev.filter((id) => id !== recipeId) : [...prev, recipeId]
+      prev.includes(recipeId)
+        ? prev.filter((id) => id !== recipeId)
+        : [...prev, recipeId]
     )
   }, [])
 
@@ -273,13 +457,34 @@ useEffect(() => {
   }
 
   return (
-    <UIContext.Provider value={{ addMealDrawerOpen, setAddMealDrawerOpen }}>
+    <UIContext.Provider value={{ addMealDrawerOpen, setAddMealDrawerOpen, selectedDate,setSelectedDate }}>
       <ProfileContext.Provider
-        value={{ profiles, activeProfile, setActiveProfile, addProfile, removeProfile, logout, isLoggedIn, setIsLoggedIn }}
+        value={{
+          profiles,
+          activeProfile,
+          setActiveProfile,
+          addProfile,
+          removeProfile,
+          logout,
+          isLoggedIn,
+          setIsLoggedIn,
+        }}
       >
-        <MealContext.Provider value={{ meals, addMeal, removeMeal, getMealsByDate, recentFoodIds }}>
+        <MealContext.Provider
+          value={{
+            meals,
+            loadingMeals,
+            addMeal,
+            removeMeal,
+            refreshMeals,
+            getMealsByDate,
+            recentFoodIds,
+          }}
+        >
           <WeightContext.Provider value={{ weights, addWeight, getWeightByDate }}>
-            <FavoritesContext.Provider value={{ favorites, toggleFavorite, isFavorite }}>
+            <FavoritesContext.Provider
+              value={{ favorites, toggleFavorite, isFavorite }}
+            >
               <ChatContext.Provider value={{ messages, addMessage, clearMessages }}>
                 {children}
               </ChatContext.Provider>

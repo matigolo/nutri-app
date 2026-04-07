@@ -103,22 +103,43 @@ export async function getTodayMealsTool(params: {
   const today = new Date().toISOString().slice(0, 10)
 
   const todayMeals = meals.filter((meal: any) => {
-    const mealDate = typeof meal.date === "string" ? meal.date.slice(0, 10) : ""
+    const mealDate =
+      typeof meal.mealDate === "string" ? meal.mealDate.slice(0, 10) : ""
     return mealDate === today
   })
 
   return {
     date: today,
-    meals: todayMeals.map((meal: any) => ({
-      id: String(meal.id),
-      title: meal.title ?? "Comida",
-      type: meal.type ?? "meal",
-      date: meal.date,
-      calories: meal.calories ?? null,
-      protein: meal.protein ?? null,
-      carbs: meal.carbs ?? null,
-      fat: meal.fat ?? null,
-    })),
+    meals: todayMeals.map((meal: any) => {
+      const items = Array.isArray(meal.items) ? meal.items : []
+
+      const totals = items.reduce(
+        (acc: any, item: any) => {
+          acc.calories += item.calories ?? 0
+          acc.protein += item.protein ?? 0
+          acc.carbs += item.carbs ?? 0
+          acc.fat += item.fat ?? 0
+          return acc
+        },
+        {
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+        }
+      )
+
+      return {
+        id: String(meal.id),
+        title: meal.notes?.trim() || `Comida ${meal.mealType ?? ""}`.trim() || "Comida",
+        type: meal.mealType ?? "meal",
+        date: meal.mealDate,
+        calories: totals.calories,
+        protein: totals.protein,
+        carbs: totals.carbs,
+        fat: totals.fat,
+      }
+    }),
   }
 }
 

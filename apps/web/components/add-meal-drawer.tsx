@@ -1,23 +1,22 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
-import { useProfiles, useMeals } from "@/lib/app-context"
-import { calculateMacrosFromApiFood, calculateMealTotals, formatDate } from "@/lib/nutrition-helpers"
+import { useState, useMemo, useCallback, useEffect } from "react"
+import { useProfiles, useMeals, useUI } from "@/lib/app-context"
+import { calculateMealTotals } from "@/lib/nutrition-helpers"
 import { FoodSearchAdd } from "@/components/food-search-add"
 import { MealItemsList } from "@/components/meal-items-list"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
 } from "@/components/ui/sheet"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Check, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { MealItem, MealEntry, FoodSearchItem} from "@/lib/types"
+import type { MealEntry, MealItem, FoodSearchItem } from "@/lib/types"
 
 const MEAL_TYPES: { value: MealEntry["type"]; label: string }[] = [
   { value: "desayuno", label: "Desayuno" },
@@ -29,12 +28,15 @@ const MEAL_TYPES: { value: MealEntry["type"]; label: string }[] = [
 interface AddMealDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  selectedDate: string
 }
 
-export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawerProps) {
+export function AddMealDrawer({
+  open,
+  onOpenChange,
+}: AddMealDrawerProps) {
   const { activeProfile } = useProfiles()
   const { addMeal } = useMeals()
+  const { selectedDate } = useUI()
 
   const [date, setDate] = useState(selectedDate)
   const [mealType, setMealType] = useState<MealEntry["type"] | null>(null)
@@ -44,7 +46,12 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
   const [errors, setErrors] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
-  // Sync date when drawer opens with new selectedDate
+  useEffect(() => {
+    if (open) {
+      setDate(selectedDate)
+    }
+  }, [selectedDate, open])
+
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
       if (newOpen) {
@@ -64,28 +71,29 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
   const totals = useMemo(() => calculateMealTotals(items), [items])
 
   const handleSelectFood = useCallback((food: FoodSearchItem) => {
-  const newItem: MealItem = {
-    id: `mi-${Date.now()}-${Math.random()}`,
-    name: food.description,
-    quantity: 100,
-    unit: "gramos",
-    macros: {
-      kcal: food.calories ?? 0,
-      protein: food.protein ?? 0,
-      carbs: food.carbs ?? 0,
-      fat: food.fat ?? 0,
-    },
-    referenceMacros: {
-      kcal: food.calories ?? 0,
-      protein: food.protein ?? 0,
-      carbs: food.carbs ?? 0,
-      fat: food.fat ?? 0,
-    },
-    advancedOpen: false,
-  }
+    const newItem: MealItem = {
+      id: `mi-${Date.now()}-${Math.random()}`,
+      name: food.description,
+      quantity: 100,
+      unit: "gramos",
+      macros: {
+        kcal: food.calories ?? 0,
+        protein: food.protein ?? 0,
+        carbs: food.carbs ?? 0,
+        fat: food.fat ?? 0,
+      },
+      referenceMacros: {
+        kcal: food.calories ?? 0,
+        protein: food.protein ?? 0,
+        carbs: food.carbs ?? 0,
+        fat: food.fat ?? 0,
+      },
+      advancedOpen: false,
+    }
 
-  setItems((prev) => [...prev, newItem])
-}, [])
+    setItems((prev) => [...prev, newItem])
+  }, [])
+
   const handleAddManual = useCallback(() => {
     const newItem: MealItem = {
       id: `mi-${Date.now()}-${Math.random()}`,
@@ -99,36 +107,41 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
   }, [])
 
   const handleUpdateItem = useCallback((id: string, updates: Partial<MealItem>) => {
-  setItems((prev) =>
-    prev.map((item) => {
-      if (item.id !== id) return item
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item
 
-      const updated = { ...item, ...updates }
+        const updated = { ...item, ...updates }
 
-      if (
-        item.referenceMacros &&
-        (updates.quantity !== undefined || updates.unit !== undefined)
-      ) {
-        let grams = updates.quantity ?? item.quantity
+        if (
+          item.referenceMacros &&
+          (updates.quantity !== undefined || updates.unit !== undefined)
+        ) {
+          let grams = updates.quantity ?? item.quantity
 
-        if ((updates.unit ?? item.unit) === "porcion") grams = (updates.quantity ?? item.quantity) * 100
-        else if ((updates.unit ?? item.unit) === "unidad") grams = (updates.quantity ?? item.quantity) * 50
-        else if ((updates.unit ?? item.unit) === "ml") grams = updates.quantity ?? item.quantity
+          if ((updates.unit ?? item.unit) === "porcion") {
+            grams = (updates.quantity ?? item.quantity) * 100
+          } else if ((updates.unit ?? item.unit) === "unidad") {
+            grams = (updates.quantity ?? item.quantity) * 50
+          } else if ((updates.unit ?? item.unit) === "ml") {
+            grams = updates.quantity ?? item.quantity
+          }
 
-        const factor = grams / 100
+          const factor = grams / 100
 
-        updated.macros = {
-          kcal: Math.round(item.referenceMacros.kcal * factor),
-          protein: Math.round(item.referenceMacros.protein * factor * 10) / 10,
-          carbs: Math.round(item.referenceMacros.carbs * factor * 10) / 10,
-          fat: Math.round(item.referenceMacros.fat * factor * 10) / 10,
+          updated.macros = {
+            kcal: Math.round(item.referenceMacros.kcal * factor),
+            protein: Math.round(item.referenceMacros.protein * factor * 10) / 10,
+            carbs: Math.round(item.referenceMacros.carbs * factor * 10) / 10,
+            fat: Math.round(item.referenceMacros.fat * factor * 10) / 10,
+          }
         }
-      }
 
-      return updated
-    })
-  )
-}, [])
+        return updated
+      })
+    )
+  }, [])
+
   const handleRemoveItem = useCallback((id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id))
   }, [])
@@ -137,10 +150,12 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
     const errs: string[] = []
     if (!mealType) errs.push("Selecciona un tipo de comida")
     if (items.length === 0) errs.push("Agrega al menos un alimento")
+
     items.forEach((item, idx) => {
       if (item.quantity <= 0) errs.push(`Alimento ${idx + 1}: cantidad > 0`)
-      if (!item.id && !item.name?.trim()) errs.push(`Alimento ${idx + 1}: ingresa un nombre`)
+      if (!item.name?.trim()) errs.push(`Alimento ${idx + 1}: ingresa un nombre`)
     })
+
     return errs
   }
 
@@ -150,6 +165,7 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
       setErrors(validationErrors)
       return
     }
+
     if (!activeProfile || !mealType) return
 
     setSaving(true)
@@ -165,11 +181,21 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
       items,
     }
 
-    // TODO: POST /api/meals
-    await new Promise((r) => setTimeout(r, 300))
-    addMeal(meal)
-    setSaving(false)
-    handleOpenChange(false)
+    try {
+      const ok = await addMeal(meal)
+
+      if (!ok) {
+        setErrors(["No se pudo guardar la comida"])
+        return
+      }
+
+      setSaving(false)
+      handleOpenChange(false)
+    } catch (error) {
+      console.error(error)
+      setErrors(["Ocurrió un error al guardar la comida"])
+      setSaving(false)
+    }
   }
 
   return (
@@ -192,16 +218,17 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
             </button>
           </div>
           <SheetDescription className="sr-only">
-            Formulario para agregar una comida al dia seleccionado
+            Formulario para agregar una comida al día seleccionado
           </SheetDescription>
         </SheetHeader>
 
-        <ScrollArea className="h-[calc(85dvh-140px)] px-5 py-4">
+        <div className="h-[calc(85dvh-140px)] overflow-y-auto px-5 py-4">
           <div className="flex flex-col gap-5 pb-4">
-            {/* Date & Time */}
             <div className="flex gap-3">
               <div className="flex flex-1 flex-col gap-1.5">
-                <label className="text-[11px] font-medium text-muted-foreground">Fecha</label>
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  Fecha
+                </label>
                 <Input
                   type="date"
                   value={date}
@@ -210,7 +237,9 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
                 />
               </div>
               <div className="flex w-28 flex-col gap-1.5">
-                <label className="text-[11px] font-medium text-muted-foreground">Hora (opc.)</label>
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  Hora (opc.)
+                </label>
                 <Input
                   type="time"
                   value={time}
@@ -220,7 +249,6 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
               </div>
             </div>
 
-            {/* Meal Type */}
             <div>
               <label className="mb-2 block text-[11px] font-medium text-muted-foreground">
                 Tipo de comida
@@ -229,7 +257,10 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
                 {MEAL_TYPES.map((t) => (
                   <button
                     key={t.value}
-                    onClick={() => { setMealType(t.value); setErrors([]) }}
+                    onClick={() => {
+                      setMealType(t.value)
+                      setErrors([])
+                    }}
                     className={cn(
                       "rounded-xl px-4 py-2 text-sm font-medium transition-all",
                       mealType === t.value
@@ -243,18 +274,22 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
               </div>
             </div>
 
-            {/* Food Search */}
             <div>
               <label className="mb-2 block text-[11px] font-medium text-muted-foreground">
                 Buscar alimento
               </label>
-              <FoodSearchAdd onSelectFood={handleSelectFood} onAddManual={handleAddManual} />
+              <FoodSearchAdd
+                onSelectFood={handleSelectFood}
+                onAddManual={handleAddManual}
+              />
             </div>
 
-            {/* Items */}
-            <MealItemsList items={items} onUpdateItem={handleUpdateItem} onRemoveItem={handleRemoveItem} />
+            <MealItemsList
+              items={items}
+              onUpdateItem={handleUpdateItem}
+              onRemoveItem={handleRemoveItem}
+            />
 
-            {/* Notes */}
             <div>
               <label className="mb-2 block text-[11px] font-medium text-muted-foreground">
                 Notas (opcional)
@@ -262,24 +297,24 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ej: Comi rapido, no tenia mucha hambre..."
+                placeholder="Ej: Comí rápido, no tenía mucha hambre..."
                 rows={2}
                 className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-foreground/50"
               />
             </div>
 
-            {/* Errors */}
             {errors.length > 0 && (
               <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2">
                 {errors.map((err, i) => (
-                  <p key={i} className="text-xs text-destructive">{err}</p>
+                  <p key={i} className="text-xs text-destructive">
+                    {err}
+                  </p>
                 ))}
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
-        {/* Sticky Footer */}
         <div className="border-t border-border bg-background px-5 py-3">
           <div className="flex items-center justify-between">
             <div className="flex gap-3">
@@ -290,11 +325,16 @@ export function AddMealDrawer({ open, onOpenChange, selectedDate }: AddMealDrawe
                 { label: "G", value: `${totals.fat.toFixed(1)}g` },
               ].map((m) => (
                 <div key={m.label} className="flex flex-col items-center">
-                  <span className="text-[10px] text-muted-foreground">{m.label}</span>
-                  <span className="text-xs font-bold tabular-nums text-foreground">{m.value}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {m.label}
+                  </span>
+                  <span className="text-xs font-bold tabular-nums text-foreground">
+                    {m.value}
+                  </span>
                 </div>
               ))}
             </div>
+
             <Button
               onClick={handleSave}
               disabled={saving}

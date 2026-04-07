@@ -16,7 +16,7 @@ const navItems = [
 
 export function BottomNavbar() {
   const pathname = usePathname()
-  const { setAddMealDrawerOpen } = useUI()
+  const { setAddMealDrawerOpen, setSelectedDate } = useUI()
 
   return (
     <nav
@@ -32,8 +32,11 @@ export function BottomNavbar() {
             return (
               <button
                 key="add-center"
-                onClick={() => setAddMealDrawerOpen(true)}
-                className="relative -mt-5 flex flex-col items-center outline-none"
+                onClick={() => {
+                  const today = new Date().toISOString().slice(0, 10)
+                  setSelectedDate(today)
+                  setAddMealDrawerOpen(true)
+                }}                className="relative -mt-5 flex flex-col items-center outline-none"
                 aria-label={item.label}
               >
                 <div className="flex size-14 items-center justify-center rounded-full bg-foreground text-background shadow-lg shadow-foreground/10 transition-transform hover:scale-105 active:scale-95">
