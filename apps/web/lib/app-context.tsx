@@ -185,7 +185,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loadingMeals, setLoadingMeals] = useState(false)
   const [weights, setWeights] = useState<WeightRecord[]>([])
   const [favorites, setFavorites] = useState<string[]>([])
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messagesByScope, setMessagesByScope] = useState<Record<string, ChatMessage[]>>({})
   const [addMealDrawerOpen, setAddMealDrawerOpen] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [selectedDate, setSelectedDate] = useState(
@@ -224,7 +224,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setWeights(loadFromStorage("nutri-weights", []))
     setFavorites(loadFromStorage("nutri-favorites", []))
-    setMessages(loadFromStorage("nutri-messages", []))
+    setMessagesByScope(loadFromStorage("nutri-messages-by-scope", {}))
     setHydrated(true)
   }, [])
 
@@ -249,8 +249,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [favorites, hydrated])
 
   useEffect(() => {
-    if (hydrated) saveToStorage("nutri-messages", messages)
-  }, [messages, hydrated])
+  if (hydrated) saveToStorage("nutri-messages-by-scope", messagesByScope)
+}, [messagesByScope, hydrated])
 
   const addProfile = useCallback(
     (name: string, goal: string | null) => {
@@ -439,14 +439,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (recipeId: string) => favorites.includes(recipeId),
     [favorites]
   )
+  const chatScopeKey =
+    activeProfile?.id && activeProfile?.userId
+      ? `${activeProfile.userId}:${activeProfile.id}`
+      : activeProfile?.id
+        ? `profile:${activeProfile.id}`
+        : "no-profile"
+
+  const messages = messagesByScope[chatScopeKey] ?? []
+
 
   const addMessage = useCallback((msg: ChatMessage) => {
-    setMessages((prev) => [...prev, msg])
-  }, [])
+    setMessagesByScope((prev) => {
+      const current = prev[chatScopeKey] ?? []
+      return {
+        ...prev,
+        [chatScopeKey]: [...current, msg],
+      }
+    })
+  }, [chatScopeKey])
 
   const clearMessages = useCallback(() => {
-    setMessages([])
-  }, [])
+    setMessagesByScope((prev) => ({
+      ...prev,
+      [chatScopeKey]: [],
+    }))
+  }, [chatScopeKey])
 
   if (!hydrated) {
     return (

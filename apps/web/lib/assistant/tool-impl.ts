@@ -5,7 +5,10 @@ import type {
   NutritionSummaryToolResult,
 } from "@/lib/assistant/types"
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"  //Este archivo es mi backend de la API de IA con sus "endpoints"
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:4000"
 
 function buildHeaders(token: string, profileId: string) {
   return {
@@ -13,6 +16,14 @@ function buildHeaders(token: string, profileId: string) {
     "X-Profile-Id": profileId,
     "Content-Type": "application/json",
   }
+}
+
+function getTodayLocalDateString() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, "0")
+  const day = String(now.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
 }
 
 export async function getActiveProfileTool(params: {
@@ -27,7 +38,14 @@ export async function getActiveProfileTool(params: {
     cache: "no-store",
   })
 
-  const data = await res.json()
+  const text = await res.text()
+  let data: any = {}
+
+  try {
+    data = text ? JSON.parse(text) : {}
+  } catch {
+    data = {}
+  }
 
   if (!res.ok) {
     throw new Error(data.error || "No se pudo obtener el perfil activo")
@@ -60,7 +78,14 @@ export async function getFavoriteRecipesTool(params: {
     cache: "no-store",
   })
 
-  const data = await res.json()
+  const text = await res.text()
+  let data: any = {}
+
+  try {
+    data = text ? JSON.parse(text) : {}
+  } catch {
+    data = {}
+  }
 
   if (!res.ok) {
     throw new Error(data.error || "No se pudieron obtener las recetas favoritas")
@@ -92,19 +117,25 @@ export async function getTodayMealsTool(params: {
     cache: "no-store",
   })
 
-  const data = await res.json()
+  const text = await res.text()
+  let data: any = {}
+
+  try {
+    data = text ? JSON.parse(text) : {}
+  } catch {
+    data = {}
+  }
 
   if (!res.ok) {
     throw new Error(data.error || "No se pudieron obtener las comidas")
   }
 
   const meals = Array.isArray(data.meals) ? data.meals : []
-
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getTodayLocalDateString()
 
   const todayMeals = meals.filter((meal: any) => {
-    const mealDate =
-      typeof meal.mealDate === "string" ? meal.mealDate.slice(0, 10) : ""
+    const raw = typeof meal.mealDate === "string" ? meal.mealDate : ""
+    const mealDate = raw ? raw.slice(0, 10) : ""
     return mealDate === today
   })
 
@@ -115,10 +146,10 @@ export async function getTodayMealsTool(params: {
 
       const totals = items.reduce(
         (acc: any, item: any) => {
-          acc.calories += item.calories ?? 0
-          acc.protein += item.protein ?? 0
-          acc.carbs += item.carbs ?? 0
-          acc.fat += item.fat ?? 0
+          acc.calories += Number(item.calories ?? 0)
+          acc.protein += Number(item.protein ?? 0)
+          acc.carbs += Number(item.carbs ?? 0)
+          acc.fat += Number(item.fat ?? 0)
           return acc
         },
         {
@@ -131,7 +162,10 @@ export async function getTodayMealsTool(params: {
 
       return {
         id: String(meal.id),
-        title: meal.notes?.trim() || `Comida ${meal.mealType ?? ""}`.trim() || "Comida",
+        title:
+          meal.notes?.trim() ||
+          `Comida ${meal.mealType ?? ""}`.trim() ||
+          "Comida",
         type: meal.mealType ?? "meal",
         date: meal.mealDate,
         calories: totals.calories,
@@ -151,10 +185,10 @@ export async function getNutritionSummaryTool(params: {
 
   const totals = todayMeals.meals.reduce(
     (acc, meal) => {
-      acc.totalCalories += meal.calories ?? 0
-      acc.totalProtein += meal.protein ?? 0
-      acc.totalCarbs += meal.carbs ?? 0
-      acc.totalFat += meal.fat ?? 0
+      acc.totalCalories += Number(meal.calories ?? 0)
+      acc.totalProtein += Number(meal.protein ?? 0)
+      acc.totalCarbs += Number(meal.carbs ?? 0)
+      acc.totalFat += Number(meal.fat ?? 0)
       return acc
     },
     {
