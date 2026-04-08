@@ -88,7 +88,7 @@ export function DayDetailDrawer({ open, onOpenChange, selectedDate, onAddMeal }:
               className="rounded-lg p-1 text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Cerrar"
             >
-              <X className="size-5" />
+      
             </button>
           </div>
         </SheetHeader>

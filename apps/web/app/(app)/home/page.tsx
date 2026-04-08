@@ -25,23 +25,24 @@ export default function HomePage() {
   const { activeProfile } = useProfiles()
   const { getMealsByDate } = useMeals()
   const { addWeight, getWeightByDate } = useWeights()
-  const { addMealDrawerOpen, setAddMealDrawerOpen } = useUI()
+  const { addMealDrawerOpen, setAddMealDrawerOpen,selectedDate: uiSelectedDate, setSelectedDate: setUiSelectedDate, } = useUI()
 
   const today = new Date()
   const [viewMonth, setViewMonth] = useState(today.getMonth())
   const [viewYear, setViewYear] = useState(today.getFullYear())
-  const [selectedDate, setSelectedDate] = useState(formatDate(today))
+  const selectedDate = uiSelectedDate;
   const [weightModalOpen, setWeightModalOpen] = useState(false)
   const [addMealOpen, setAddMealOpen] = useState(false)
   const [dayDetailOpen, setDayDetailOpen] = useState(false)
 
   // Sync with global navbar "+" button
-  useEffect(() => {
-    if (addMealDrawerOpen) {
-      setAddMealOpen(true)
-      setAddMealDrawerOpen(false)
-    }
-  }, [addMealDrawerOpen, setAddMealDrawerOpen])
+useEffect(() => {
+  if (addMealDrawerOpen) {
+    setUiSelectedDate(formatDate(new Date()))
+    setAddMealOpen(true)
+    setAddMealDrawerOpen(false)
+  }
+}, [addMealDrawerOpen, setAddMealDrawerOpen, setUiSelectedDate])
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth)
   const startDay = getStartDayOfMonth(viewYear, viewMonth)
@@ -76,15 +77,15 @@ export default function HomePage() {
     })
   }
 
-  function handleDayClick(dateStr: string) {
-    setSelectedDate(dateStr)
-    setDayDetailOpen(true)
-  }
+function handleDayClick(dateStr: string) {
+  setUiSelectedDate(dateStr)
+  setDayDetailOpen(true)
+}
 
-  function handleOpenAddMeal() {
-    setDayDetailOpen(false)
-    setAddMealOpen(true)
-  }
+function handleOpenAddMeal() {
+  setDayDetailOpen(false)
+  setAddMealOpen(true)
+}
 
   return (
     <div className="page-transition mx-auto max-w-lg px-4 pt-6 pb-4">
@@ -99,7 +100,10 @@ export default function HomePage() {
           </p>
         </div>
         <button
-          onClick={() => setAddMealOpen(true)}
+          onClick={() => {
+            setUiSelectedDate(formatDate(new Date()))
+            setAddMealOpen(true)
+          }}
           className="flex size-10 items-center justify-center rounded-xl bg-foreground text-background transition-transform hover:scale-105 active:scale-95"
           aria-label="Agregar comida"
         >
@@ -245,7 +249,6 @@ export default function HomePage() {
       <AddMealDrawer
         open={addMealOpen}
         onOpenChange={setAddMealOpen}
-        selectedDate={selectedDate}
       />
 
       <WeightInputModal

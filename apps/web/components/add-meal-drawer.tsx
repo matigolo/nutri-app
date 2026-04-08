@@ -214,7 +214,6 @@ export function AddMealDrawer({
               className="rounded-lg p-1 text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Cerrar"
             >
-              <X className="size-5" />
             </button>
           </div>
           <SheetDescription className="sr-only">
