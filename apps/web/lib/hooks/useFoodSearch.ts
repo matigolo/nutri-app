@@ -14,8 +14,6 @@ export function useFoodSearch(query: string) {
 
   useEffect(() => {
     const q = query.trim()
-    const token = localStorage.getItem("token")
-    const profileId = localStorage.getItem("activeProfileId")
 
     console.log("hook query:", q)
 

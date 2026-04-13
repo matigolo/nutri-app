@@ -127,12 +127,6 @@ function normalizeMessages(body: AssistantRequest): AssistantMessage[] {
   return []
 }
 
-function getBearerToken(authHeader: string | null): string | null {
-  if (!authHeader) return null
-  if (!authHeader.toLowerCase().startsWith("bearer ")) return null
-  return authHeader.slice(7).trim() || null
-}
-
 function shouldUseActiveProfileTool(text: string): boolean {
   const lower = text.toLowerCase()
 
@@ -265,13 +259,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const authHeader = request.headers.get("authorization")
+    // El token vive en la cookie HttpOnly — no viaja como header desde el browser.
+    // La leemos server-side directamente del request de Next.js.
+    const token = request.cookies.get("auth-token")?.value ?? null
     const profileId = request.headers.get("x-profile-id")
-    const token = getBearerToken(authHeader)
 
     if (!token) {
       return NextResponse.json(
-        { error: "Falta Authorization Bearer token" },
+        { error: "No autenticado. Iniciá sesión nuevamente." },
         { status: 401 }
       )
     }

@@ -29,7 +29,9 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      const res = await fetch("http://localhost:4000/auth/login", {
+      // Llamamos al proxy de Next.js: él hace el fetch al backend y setea
+      // el token en una cookie HttpOnly (invisible para JavaScript)
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password: password.trim() }),
@@ -38,31 +40,18 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        // ✅ tu backend devuelve { error: "..." }
         setError(data?.error ?? "Error al iniciar sesión")
         setLoading(false)
         return
       }
 
-      // ✅ el backend devuelve { token, user, profiles }
-      const token = data?.token
-      if (!token) {
-        setError("Login OK pero no llegó token")
-        setLoading(false)
-        return
-      }
-
-      localStorage.setItem("token", token)
-
-      // (opcional) guardar userId
+      // El token ya no se guarda en localStorage — vive en la cookie HttpOnly
       if (data?.user?.id) localStorage.setItem("userId", String(data.user.id))
 
-      // ✅ setear perfil activo (necesario para profileContext /foods/*)
       const firstProfileId = data?.profiles?.[0]?.id
       if (firstProfileId) {
         localStorage.setItem("activeProfileId", String(firstProfileId))
       } else {
-        // si no tenés perfiles, /foods/search va a fallar hasta que crees/selecciones uno
         console.warn("Login OK pero no llegaron profiles para setear activeProfileId")
       }
 

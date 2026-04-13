@@ -1,5 +1,14 @@
 const jwt = require("jsonwebtoken");
 
+/**
+ * Middleware de autenticación JWT.
+ * Verifica el header Authorization: Bearer <token>.
+ * Si el token es válido, popula req.user con el payload y req.userId como BigInt.
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
 function auth(req, res, next) {
   const header = req.headers.authorization; // "Bearer xxx"
   if (!header) return res.status(401).json({ message: "Missing Authorization header" });

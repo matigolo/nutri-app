@@ -1,5 +1,15 @@
 const prisma = require("../prisma");
 
+/**
+ * Middleware de contexto de perfil.
+ * Lee el header X-Profile-Id y verifica que el perfil pertenezca al usuario autenticado.
+ * Debe ejecutarse después del middleware auth.
+ * Popula req.profileId (BigInt) y req.profile ({ id: string, name: string }).
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
 async function profileContext(req, res, next) {
   const profileIdRaw = req.headers["x-profile-id"];
   if (!profileIdRaw) {

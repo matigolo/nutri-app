@@ -1,5 +1,6 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const rateLimit = require("express-rate-limit");
 const profileContext = require("./middlewares/profileContext");
 const auth = require("./middlewares/auth");
 const prisma = require("./prisma");
@@ -9,30 +10,89 @@ require("dotenv").config()
 
 const app = express()
 
+/**
+ * Validación de variables de entorno críticas al arrancar.
+ * En producción, un JWT_SECRET débil o ausente es un riesgo crítico porque
+ * cualquiera podría forjar tokens válidos para cualquier userId.
+ * Genera error fatal en producción y advertencia en desarrollo.
+ */
+const WEAK_SECRETS = ["super_secret_dev_key", "secret", "jwt_secret", "changeme", ""]
+const jwtSecret = process.env.JWT_SECRET || ""
+
+if (!jwtSecret || WEAK_SECRETS.includes(jwtSecret.toLowerCase())) {
+  if (process.env.NODE_ENV === "production") {
+    console.error(
+      "FATAL: JWT_SECRET no está configurado o usa un valor inseguro. " +
+      "Generá un secreto aleatorio con: openssl rand -base64 32"
+    )
+    process.exit(1)
+  } else {
+    console.warn(
+      "ADVERTENCIA DE SEGURIDAD: JWT_SECRET usa el valor por defecto inseguro. " +
+      "Cambiarlo antes de desplegar en producción. " +
+      "Podés generar uno con: openssl rand -base64 32"
+    )
+  }
+}
+
+/**
+ * Configuración de CORS.
+ * En producción, establecer ALLOWED_ORIGIN en las variables de entorno.
+ * Por defecto apunta a localhost:3000 para desarrollo local.
+ */
 const corsOptions = {
-  origin: "http://localhost:3000",
+  origin: process.env.ALLOWED_ORIGIN || "http://localhost:3000",
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Profile-Id"],
   credentials: false,
 }
 
 app.use(cors(corsOptions))
-// si querés asegurar preflight:
 app.options(/.*/, cors(corsOptions))
 
-app.use(express.json())
+/**
+ * Límite de tamaño del body JSON: 100kb.
+ * Protege contra ataques de DoS por payloads demasiado grandes.
+ */
+app.use(express.json({ limit: "100kb" }))
+
+/**
+ * Rate limiting para endpoints de autenticación.
+ * Limita a 10 intentos por IP cada 15 minutos para prevenir fuerza bruta.
+ */
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiados intentos. Intentá nuevamente en 15 minutos." },
+})
 
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
-//llamada para registrar un nuevo usuario, recibe email, password y opcionalmente el nombre del primer perfil
-app.post("/auth/register", async (req, res) => {
+/**
+ * Registra un nuevo usuario con email y contraseña.
+ * Opcionalmente crea el primer perfil con nombre y objetivo.
+ * Aplica rate limiting de 10 intentos/15min por IP.
+ *
+ * @body {string} email
+ * @body {string} password - Mínimo 8 caracteres
+ * @body {string} [firstProfileName]
+ * @body {string} [firstProfileGoal]
+ * @returns {201} Usuario creado con sus perfiles
+ */
+app.post("/auth/register", authLimiter, async (req, res) => {
   try {
     const { email, password, firstProfileName, firstProfileGoal } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: "email y password son requeridos" });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: "la contraseña debe tener al menos 8 caracteres" });
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -75,11 +135,19 @@ app.post("/auth/register", async (req, res) => {
     });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ error: "error interno" });
+    return res.status(500).json({ error: "error interno del servidor" });
   }
 });
-//llamada para loguear un usuario existente, devuelve un token JWT si las credenciales son correctas
-app.post("/auth/login", async (req, res) => {
+
+/**
+ * Autentica un usuario y devuelve un token JWT válido por 7 días.
+ * Aplica rate limiting de 10 intentos/15min por IP.
+ *
+ * @body {string} email
+ * @body {string} password
+ * @returns {200} Token JWT y lista de perfiles del usuario
+ */
+app.post("/auth/login", authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -116,16 +184,27 @@ app.post("/auth/login", async (req, res) => {
     });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ error: "error interno" });
+    return res.status(500).json({ error: "error interno del servidor" });
   }
 });
-//ejemplo de ruta protegida que devuelve los datos del usuario logueado, se accede a través de req.user gracias al middleware auth
+/**
+ * Devuelve los datos del usuario autenticado.
+ * El payload del token está disponible en req.user gracias al middleware auth.
+ *
+ * @returns {200} Payload del JWT del usuario (userId, iat, exp)
+ */
 app.get("/me", auth, async (req, res) => {
-  // req.user viene del token (por ejemplo: { userId: 1, email: "...", iat, exp })
   return res.json({ user: req.user });
 });
 
-//POST para crear un perfil -- verifica tambien que no exista un perfil con el mismo nombre asociado al mismo usuario
+/**
+ * Crea un nuevo perfil para el usuario autenticado.
+ * Verifica que no exista ya un perfil con el mismo nombre bajo la misma cuenta.
+ *
+ * @body {string} name - Nombre del perfil (requerido, único por usuario)
+ * @body {string} [goal] - Objetivo nutricional del perfil
+ * @returns {201} Perfil creado
+ */
 app.post("/profiles", auth, async (req, res) => {
   try {
     const { name, goal } = req.body;
@@ -161,10 +240,14 @@ app.post("/profiles", auth, async (req, res) => {
   });
   } catch (err) {
     console.error("ERROR /profiles:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "error interno del servidor" });
   }
 });
-//GET devuelve todos los perfiles asociados a un usuario
+/**
+ * Devuelve todos los perfiles del usuario autenticado, ordenados por id ascendente.
+ *
+ * @returns {200} Lista de perfiles (id, name, goal, avatarUrl, createdAt)
+ */
 app.get("/profiles", auth, async (req, res) =>  {
   try{
     const profiles = await prisma.profile.findMany({
@@ -192,11 +275,18 @@ app.get("/profiles", auth, async (req, res) =>  {
     })}
     catch (err) {
     console.error("ERROR GET /profiles:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "error interno del servidor" });
   }
     
 } )
-// DELETE elimina un perfil (no permite borrar el último)
+/**
+ * Elimina un perfil del usuario autenticado.
+ * No permite eliminar el último perfil de la cuenta.
+ * El cascade del schema elimina meals, items y favoritos asociados.
+ *
+ * @param {string} id - ID del perfil a eliminar
+ * @returns {200} { ok: true, deletedProfileId }
+ */
 app.delete("/profiles/:id", auth, async (req, res) => {
   try {
     const profileIdStr = req.params.id;
@@ -242,24 +332,45 @@ app.delete("/profiles/:id", auth, async (req, res) => {
     });
   } catch (err) {
     console.error("ERROR DELETE /profiles/:id:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "error interno del servidor" });
   }
 });
 
-//Perfil activo
+/**
+ * Devuelve el perfil activo validado por el middleware profileContext.
+ * Requiere el header X-Profile-Id además del token JWT.
+ *
+ * @returns {200} { profileId, profile: { id, name } }
+ */
 app.get("/profile/active", auth, profileContext, (req, res) => {
   return res.json({
     profileId: req.profileId.toString(),
     profile: req.profile,
   });
 });
-//POST para cargar una comida entera
+/**
+ * Crea una nueva comida con sus ítems nutricionales para el perfil activo.
+ *
+ * @body {string} mealType - Tipo de comida: breakfast | lunch | snack | dinner
+ * @body {string} [mealDate] - Fecha ISO de la comida (por defecto: ahora)
+ * @body {string} [notes] - Notas opcionales
+ * @body {Array}  [items] - Items nutricionales de la comida
+ * @body {string}  items[].name
+ * @body {number}  [items[].quantity]
+ * @body {string}  [items[].unit]
+ * @body {number}  [items[].calories]
+ * @body {number}  [items[].protein]
+ * @body {number}  [items[].carbs]
+ * @body {number}  [items[].fat]
+ * @returns {201} Comida creada con sus ítems
+ */
 app.post("/meals", auth, profileContext, async (req, res) => {
   try {
     const { mealType, mealDate, notes, items } = req.body;
 
-    if (!mealType || !mealType.trim()) {
-      return res.status(400).json({ error: "mealType es requerido" });
+    const VALID_MEAL_TYPES = ["desayuno", "almuerzo", "merienda", "cena"];
+    if (!mealType || !VALID_MEAL_TYPES.includes(mealType.trim().toLowerCase())) {
+      return res.status(400).json({ error: "mealType debe ser: desayuno, almuerzo, merienda o cena" });
     }
 
     const date = mealDate ? new Date(mealDate) : new Date();
@@ -318,11 +429,16 @@ app.post("/meals", auth, profileContext, async (req, res) => {
     });
   } catch (err) {
     console.error("ERROR POST /meals:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "error interno del servidor" });
   }
 });
 
-//GET de todas las comidas de un perfil
+/**
+ * Devuelve todas las comidas del perfil activo, ordenadas por fecha descendente.
+ * Incluye los ítems nutricionales de cada comida.
+ *
+ * @returns {200} { meals: [...] }
+ */
 app.get("/meals", auth, profileContext, async (req, res) => {
   try {
     const meals = await prisma.meal.findMany({
@@ -355,10 +471,16 @@ app.get("/meals", auth, profileContext, async (req, res) => {
     });
   } catch (err) {
     console.error("ERROR GET /meals:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "error interno del servidor" });
   }
 });
-//Buscar comida inventario / API
+/**
+ * Busca alimentos en la API USDA FDC y devuelve hasta 10 resultados
+ * con sus macronutrientes principales (calorías, proteína, carbohidratos, grasa).
+ *
+ * @query {string} q - Texto de búsqueda (requerido)
+ * @returns {200} { foods: [...] }
+ */
 app.get("/foods/search", auth, profileContext, async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
@@ -404,11 +526,17 @@ app.get("/foods/search", auth, profileContext, async (req, res) => {
     return res.json({ foods });
   } catch (err) {
     console.error("ERROR /foods/search:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "error interno del servidor" });
   }
 });
 
 
+/**
+ * Devuelve el detalle completo de un alimento de USDA FDC por su ID.
+ *
+ * @param {number} fdcId - ID del alimento en USDA FDC
+ * @returns {200} { food: {...} } con todos los nutrientes disponibles
+ */
 app.get("/foods/:fdcId", auth, profileContext, async (req, res) => {
   try {
     const fdcId = Number(req.params.fdcId);
@@ -429,10 +557,21 @@ app.get("/foods/:fdcId", auth, profileContext, async (req, res) => {
     return res.json({ food: data });
   } catch (err) {
     console.error("ERROR /foods/:fdcId:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "error interno del servidor" });
   }
 });
-// POST recetas
+/**
+ * Crea una nueva receta asociada al perfil activo.
+ *
+ * @body {string}   title - Título de la receta (requerido)
+ * @body {string}   [description]
+ * @body {Array}    ingredients - Lista de ingredientes (requerido)
+ * @body {Array}    steps - Pasos de preparación (requerido)
+ * @body {number}   [timeMinutes] - Tiempo de preparación en minutos
+ * @body {number}   [calories] - Calorías estimadas
+ * @body {string}   [imageUrl] - URL de imagen (debe ser http/https válida)
+ * @returns {201} Receta creada
+ */
 app.post("/recipes", auth, profileContext, async (req, res) => {
   try {
     const profileId = req.profileId
@@ -451,6 +590,17 @@ app.post("/recipes", auth, profileContext, async (req, res) => {
       return res.status(400).json({
         error: "title, ingredients y steps son obligatorios",
       })
+    }
+
+    if (imageUrl) {
+      try {
+        const parsed = new URL(imageUrl)
+        if (!["http:", "https:"].includes(parsed.protocol)) {
+          return res.status(400).json({ error: "imageUrl debe ser una URL http o https válida" })
+        }
+      } catch {
+        return res.status(400).json({ error: "imageUrl no es una URL válida" })
+      }
     }
 
     const recipe = await prisma.recipe.create({
@@ -486,7 +636,14 @@ app.post("/recipes", auth, profileContext, async (req, res) => {
   }
 })
 
-// GET recetas
+/**
+ * Devuelve todas las recetas de la plataforma (visibles globalmente).
+ * Marca con isFavorite las que el perfil activo guardó como favorita.
+ * Soporta búsqueda por título vía query param search.
+ *
+ * @query {string} [search] - Filtro por título (búsqueda parcial)
+ * @returns {200} { recipes: [...] }
+ */
 app.get("/recipes", auth, profileContext, async (req, res) => {
   try {
     const profileId = req.profileId
@@ -541,7 +698,12 @@ app.get("/recipes", auth, profileContext, async (req, res) => {
   }
 })
 
-// GET favoritas
+/**
+ * Devuelve las recetas marcadas como favoritas por el perfil activo,
+ * ordenadas por fecha de marcado descendente.
+ *
+ * @returns {200} { recipes: [...] } con isFavorite: true en todos
+ */
 app.get("/recipes/favorites", auth, profileContext, async (req, res) => {
   try {
     const profileId = req.profileId
@@ -589,7 +751,13 @@ app.get("/recipes/favorites", auth, profileContext, async (req, res) => {
   }
 })
 
-// GET receta puntual
+/**
+ * Devuelve el detalle de una receta específica por ID.
+ * Incluye si el perfil activo la tiene marcada como favorita.
+ *
+ * @param {string} id - ID de la receta
+ * @returns {200} { recipe: {...} }
+ */
 app.get("/recipes/:id", auth, profileContext, async (req, res) => {
   try {
     const profileId = req.profileId
@@ -639,7 +807,13 @@ app.get("/recipes/:id", auth, profileContext, async (req, res) => {
   }
 })
 
-// POST favorita
+/**
+ * Marca una receta como favorita para el perfil activo (upsert).
+ * Si ya existe el favorito, no genera error.
+ *
+ * @param {string} id - ID de la receta
+ * @returns {201} { success: true }
+ */
 app.post("/recipes/:id/favorite", auth, profileContext, async (req, res) => {
   try {
     const profileId = req.profileId
@@ -666,7 +840,12 @@ app.post("/recipes/:id/favorite", auth, profileContext, async (req, res) => {
   }
 })
 
-// DELETE favorita
+/**
+ * Elimina una receta de los favoritos del perfil activo.
+ *
+ * @param {string} id - ID de la receta
+ * @returns {200} { success: true }
+ */
 app.delete("/recipes/:id/favorite", auth, profileContext, async (req, res) => {
   try {
     const profileId = req.profileId

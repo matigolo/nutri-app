@@ -35,30 +35,17 @@ export default function ProfilesPage() {
   const [newName, setNewName] = useState("")
   const [newGoal, setNewGoal] = useState("")
 
-    useEffect(() => { //me recomendó IA para expulsar si alguien entra sin token
-  const token = localStorage.getItem("token")
-  if (!token) {
-    router.push("/login")
-    return
-  }
-
-  fetchProfiles()
-}, [])
-    async function fetchProfiles() { //fetchprofiles hace el get de perfiles y guarda los datos en profile
-      const token = localStorage.getItem("token"); //extraigo el token del user para usar de autorización
-
-      //const profileId = localStorage.getItem("activeProfileId")
-
-      const res = await apiFetch("http://localhost:4000/profiles", { //endpoint
-      });
+    async function fetchProfiles() {
+      // apiFetch usa el proxy: el token viaja en la cookie HttpOnly, no en localStorage
+      const res = await apiFetch("http://localhost:4000/profiles", {});
 
       const data = await res.json();
       setProfiles(data.profiles);
     }
-    // Hacemos useEffect para que en caso de alguna modificacion, se reseteen los datos
+
     useEffect(() => {
-      fetchProfiles();
-  }, []);
+      fetchProfiles()
+    }, []);
 
   function handleSelectProfile(profile: Profile) {
     if (managing) return
@@ -74,19 +61,10 @@ export default function ProfilesPage() {
     return
   }
 
-  const token = localStorage.getItem("token") 
-
-  if (!token) {
-    alert("No hay sesión activa")
-    return
-  }
-
-  const res = await fetch("http://localhost:4000/profiles", {
+  // apiFetch usa el proxy con la cookie HttpOnly — sin necesidad de leer el token
+  const res = await apiFetch("http://localhost:4000/profiles", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       name: newName.trim(),
       goal: newGoal,
@@ -112,9 +90,6 @@ export default function ProfilesPage() {
 
 
 async function handleDeleteProfile(profile: Profile) {
-  const token = localStorage.getItem("token")
-  if (!token) { router.push("/login"); return }
-
   const res = await apiFetch(`http://localhost:4000/profiles/${profile.id}`, {
     method: "DELETE",
   })
@@ -129,9 +104,12 @@ async function handleDeleteProfile(profile: Profile) {
   await fetchProfiles()
 }
 
-function handleLogout() {
+async function handleLogout() {
+  // Limpiar la cookie HttpOnly server-side (el browser no puede hacerlo con JS)
+  await fetch("/api/auth/logout", { method: "POST" })
   logout()
-  localStorage.removeItem("token");
+  localStorage.removeItem("activeProfileId")
+  localStorage.removeItem("userId")
   router.push("/login")
 }
 
