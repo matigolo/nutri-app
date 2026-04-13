@@ -47,10 +47,15 @@ export function AddMealDrawer({
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (open) {
-      setDate(selectedDate)
-    }
-  }, [selectedDate, open])
+    if (!open) return
+    setDate(selectedDate)
+    setMealType(null)
+    setTime("")
+    setNotes("")
+    setItems([])
+    setErrors([])
+    setSaving(false)
+  }, [open, selectedDate])
 
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
