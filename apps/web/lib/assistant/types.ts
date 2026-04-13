@@ -63,3 +63,26 @@ export type NutritionSummaryToolResult = {
   totalFat: number
   mealsCount: number
 }
+
+// V2: resumen de la semana agrupado por día
+export type WeeklyDaySummary = {
+  date: string          // "2026-04-13"
+  dayName: string       // "domingo"
+  mealsCount: number
+  totalCalories: number
+  totalProtein: number
+  totalCarbs: number
+  totalFat: number
+  hasData: boolean      // false si no hubo comidas ese día
+}
+
+export type WeeklySummaryToolResult = {
+  weekStart: string         // primer día del rango
+  weekEnd: string           // último día (hoy)
+  days: WeeklyDaySummary[]  // 7 días, más reciente al final
+  daysWithData: number      // cuántos días tuvieron al menos 1 comida
+  avgCalories: number
+  avgProtein: number
+  avgCarbs: number
+  avgFat: number
+}

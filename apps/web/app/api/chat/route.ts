@@ -4,10 +4,6 @@ import type {
   AssistantMessage,
   AssistantRequest,
   AssistantResponse,
-  ActiveProfileToolResult,
-  FavoriteRecipesToolResult,
-  TodayMealsToolResult,
-  NutritionSummaryToolResult,
 } from "@/lib/assistant/types"
 import { NUTRITION_ASSISTANT_SYSTEM_PROMPT } from "@/lib/assistant/system-prompt"
 import {
@@ -15,252 +11,162 @@ import {
   getFavoriteRecipesTool,
   getTodayMealsTool,
   getNutritionSummaryTool,
+  getWeeklySummaryTool,
 } from "@/lib/assistant/tool-impl"
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash"
 
+/**
+ * Palabras clave que indican que la consulta está relacionada con nutrición.
+ * Si ninguna aparece en el texto, se rechaza con un mensaje informativo.
+ */
 const NUTRITION_KEYWORDS = [
-  "proteina",
-  "proteinas",
-  "protein",
-  "caloria",
-  "calorias",
-  "calories",
-  "carbohidrato",
-  "carbohidratos",
-  "carbs",
-  "grasa",
-  "grasas",
-  "fat",
-  "dieta",
-  "nutricion",
-  "nutriente",
-  "vitamina",
-  "mineral",
-  "fiber",
-  "fibra",
-  "comida",
-  "comidas",
-  "comer",
-  "alimento",
-  "alimentacion",
-  "desayuno",
-  "almuerzo",
-  "cena",
-  "merienda",
-  "receta",
-  "recetas",
-  "cocinar",
-  "saludable",
-  "peso",
-  "engordar",
-  "adelgazar",
-  "bajar",
-  "subir",
-  "masa muscular",
-  "musculo",
-  "vegano",
-  "vegetariano",
-  "ayuno",
-  "intermitente",
-  "suplemento",
-  "batido",
-  "hidratacion",
-  "agua",
-  "leche",
-  "fruta",
-  "verdura",
-  "carne",
-  "pescado",
-  "huevo",
-  "arroz",
-  "pan",
-  "pasta",
-  "legumbre",
-  "cereal",
-  "avena",
-  "yogur",
-  "queso",
-  "aceite",
-  "azucar",
-  "sal",
-  "macro",
-  "macros",
-  "micronutriente",
-  "metabolismo",
-  "digestion",
-  "intestino",
-  "hambre",
-  "saciedad",
-  "porcion",
-  "kcal",
-  "kilocalorias",
-  "indice glucemico",
-  "colesterol",
-  "sodio",
-  "perfil",
-  "objetivo",
-  "favorita",
-  "favoritas",
-  "como vengo",
-  "cómo vengo",
-  "como voy",
-  "cómo voy",
-  "mis comidas",
-  "hoy",
+  "proteina", "proteinas", "protein", "proteína", "proteínas",
+  "caloria", "calorias", "calories", "caloría", "calorías", "kcal", "kilocalorias",
+  "carbohidrato", "carbohidratos", "carbs", "hidrato",
+  "grasa", "grasas", "fat",
+  "dieta", "nutricion", "nutrición", "nutriente", "micronutriente",
+  "vitamina", "mineral", "fibra", "fiber",
+  "comida", "comidas", "comer", "alimento", "alimentacion", "alimentación",
+  "desayuno", "almuerzo", "cena", "merienda",
+  "receta", "recetas", "cocinar", "preparar",
+  "saludable", "salud",
+  "peso", "engordar", "adelgazar", "bajar", "subir", "masa muscular", "musculo",
+  "vegano", "vegetariano", "ayuno", "intermitente",
+  "suplemento", "batido", "shake",
+  "hidratacion", "hidratación", "agua", "liquido",
+  "leche", "fruta", "verdura", "carne", "pescado", "huevo",
+  "arroz", "pan", "pasta", "legumbre", "cereal", "avena", "yogur", "queso",
+  "aceite", "azucar", "sal", "azúcar",
+  "macro", "macros",
+  "metabolismo", "digestion", "digestión", "intestino", "hambre", "saciedad",
+  "porcion", "porción", "indice glucemico",
+  "colesterol", "sodio",
+  "objetivo", "meta", "perfil",
+  "favorita", "favoritas", "mis recetas",
+  "como vengo", "cómo vengo", "como voy", "cómo voy",
+  "mis comidas", "hoy", "que comi", "qué comí",
+  "me conviene", "que puedo", "qué puedo",
 ]
 
 function isNutritionRelated(text: string): boolean {
   const lower = text.toLowerCase()
-  return NUTRITION_KEYWORDS.some((keyword) => lower.includes(keyword))
+  return NUTRITION_KEYWORDS.some((kw) => lower.includes(kw))
 }
 
 function normalizeMessages(body: AssistantRequest): AssistantMessage[] {
   if ("messages" in body && Array.isArray(body.messages) && body.messages.length > 0) {
     return body.messages
   }
-
   if ("message" in body && typeof body.message === "string" && body.message.trim()) {
     return [{ role: "user", content: body.message.trim() }]
   }
-
   return []
 }
 
-function shouldUseActiveProfileTool(text: string): boolean {
+/**
+ * ¿El usuario pregunta sobre sus comidas del día o resumen nutricional?
+ * Se activa cuando hay señales de consulta personal sobre el día actual.
+ */
+function wantsPersonalFoodData(text: string): boolean {
   const lower = text.toLowerCase()
-
   return (
-    lower.includes("mi objetivo") ||
-    lower.includes("objetivo actual") ||
-    lower.includes("mi perfil") ||
-    lower.includes("perfil activo") ||
-    lower.includes("teniendo en cuenta mi objetivo") ||
-    lower.includes("segun mi objetivo") ||
-    lower.includes("según mi objetivo")
+    lower.includes("hoy") ||
+    lower.includes("mis comidas") ||
+    lower.includes("que comi") ||
+    lower.includes("qué comí") ||
+    lower.includes("como vengo") ||
+    lower.includes("cómo vengo") ||
+    lower.includes("como voy") ||
+    lower.includes("cómo voy") ||
+    lower.includes("me conviene cenar") ||
+    lower.includes("me conviene comer") ||
+    lower.includes("proteina") ||
+    lower.includes("proteína") ||
+    lower.includes("caloria") ||
+    lower.includes("caloría") ||
+    lower.includes("macros")
   )
 }
 
-function shouldUseFavoriteRecipesTool(text: string): boolean {
+/**
+ * ¿El usuario pregunta sobre su progreso de la semana?
+ * V2: detecta preguntas sobre tendencias, consistencia o resumen semanal.
+ */
+function wantsWeeklyProgress(text: string): boolean {
   const lower = text.toLowerCase()
+  return (
+    lower.includes("semana") ||
+    lower.includes("esta semana") ||
+    lower.includes("ultimos dias") ||
+    lower.includes("últimos días") ||
+    lower.includes("últimos 7") ||
+    lower.includes("como voy en la semana") ||
+    lower.includes("cómo voy en la semana") ||
+    lower.includes("progreso") ||
+    lower.includes("tendencia") ||
+    lower.includes("consistencia") ||
+    lower.includes("promedio")
+  )
+}
 
+/**
+ * ¿El usuario pregunta sobre recetas o qué puede cocinar?
+ */
+function wantsRecipes(text: string): boolean {
+  const lower = text.toLowerCase()
   return (
     lower.includes("favorita") ||
     lower.includes("favoritas") ||
     lower.includes("mis recetas") ||
-    lower.includes("mis recetas favoritas") ||
-    lower.includes("que receta") ||
-    lower.includes("qué receta") ||
+    lower.includes("receta") ||
     lower.includes("que puedo cocinar") ||
-    lower.includes("qué puedo cocinar")
+    lower.includes("qué puedo cocinar") ||
+    lower.includes("que cocino") ||
+    lower.includes("qué cocino") ||
+    lower.includes("que preparo") ||
+    lower.includes("qué preparo")
   )
 }
 
-function shouldUseTodayMealsTool(text: string): boolean {
-  const lower = text.toLowerCase()
+/**
+ * Construye el array de Content para Gemini en formato multi-turn.
+ * El último mensaje del usuario recibe el bloque de contexto de la app
+ * para que Gemini tenga datos reales al responder.
+ */
+function buildGeminiContents(
+  messages: AssistantMessage[],
+  contextBlocks: string[]
+): Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> {
+  return messages.map((msg, idx) => {
+    const isLast = idx === messages.length - 1
+    const geminiRole = msg.role === "assistant" ? "model" : "user"
 
-  return (
-    lower.includes("como vengo hoy") ||
-    lower.includes("cómo vengo hoy") ||
-    lower.includes("como voy hoy") ||
-    lower.includes("cómo voy hoy") ||
-    lower.includes("como voy con mis comidas") ||
-    lower.includes("cómo voy con mis comidas") ||
-    lower.includes("como vengo con mis comidas") ||
-    lower.includes("cómo vengo con mis comidas") ||
-    lower.includes("que comi hoy") ||
-    lower.includes("qué comí hoy") ||
-    lower.includes("que me conviene cenar") ||
-    lower.includes("qué me conviene cenar") ||
-    lower.includes("que me conviene comer hoy") ||
-    lower.includes("qué me conviene comer hoy") ||
-    lower.includes("como vengo con la comida") ||
-    lower.includes("cómo vengo con la comida") ||
-    lower.includes("mis comidas") ||
-    lower.includes("hoy")
-  )
-}
+    if (isLast && geminiRole === "user" && contextBlocks.length > 0) {
+      const contextSection = [
+        "[Datos actuales del usuario en la app]",
+        contextBlocks.join("\n\n"),
+        "[Consulta del usuario]",
+        msg.content,
+      ].join("\n")
 
-function shouldUseNutritionSummaryTool(text: string): boolean {
-  const lower = text.toLowerCase()
+      return { role: "user" as const, parts: [{ text: contextSection }] }
+    }
 
-  return (
-    lower.includes("proteina") ||
-    lower.includes("proteínas") ||
-    lower.includes("proteinas") ||
-    lower.includes("calorias") ||
-    lower.includes("calorías") ||
-    lower.includes("macros") ||
-    lower.includes("como vengo hoy") ||
-    lower.includes("cómo vengo hoy") ||
-    lower.includes("como voy hoy") ||
-    lower.includes("cómo voy hoy") ||
-    lower.includes("como voy con mis comidas") ||
-    lower.includes("cómo voy con mis comidas") ||
-    lower.includes("como vengo con mis comidas") ||
-    lower.includes("cómo vengo con mis comidas") ||
-    lower.includes("me conviene cenar") ||
-    lower.includes("me conviene comer")
-  )
-}
-
-function buildConversation(messages: AssistantMessage[]): string {
-  return messages
-    .map((msg) => {
-      const role = msg.role === "assistant" ? "Asistente" : "Usuario"
-      return `${role}: ${msg.content}`
-    })
-    .join("\n\n")
-}
-
-function buildDirectObjectiveReply(profile: ActiveProfileToolResult | null) {
-  if (!profile) {
-    return "No pude obtener tu perfil activo en este momento."
-  }
-
-  return profile.goal
-    ? `Tu objetivo actual es: ${profile.goal}.`
-    : "Tu perfil activo no tiene un objetivo definido todavía."
-}
-
-function buildDirectMealsReply(
-  summary: NutritionSummaryToolResult | null,
-  todayMeals: TodayMealsToolResult | null,
-  profile: ActiveProfileToolResult | null
-) {
-  if (!summary || !todayMeals) {
-    return "No pude obtener tus comidas de hoy en este momento."
-  }
-
-  if (summary.mealsCount === 0) {
-    return profile?.goal
-      ? `Hoy no tenés comidas registradas todavía. Teniendo en cuenta tu objetivo (${profile.goal}), podrías empezar cargando tu próxima comida para poder orientarte mejor.`
-      : "Hoy no tenés comidas registradas todavía."
-  }
-
-  const mealNames =
-    todayMeals.meals.length > 0
-      ? todayMeals.meals.map((meal) => meal.title).join(", ")
-      : "sin detalle"
-
-  return profile?.goal
-    ? `Hoy llevás ${summary.mealsCount} comida(s) registrada(s): ${mealNames}. Acumulás ${summary.totalCalories} kcal, ${summary.totalProtein} g de proteína, ${summary.totalCarbs} g de carbohidratos y ${summary.totalFat} g de grasas. Esto lo estoy leyendo en el contexto de tu objetivo actual: ${profile.goal}.`
-    : `Hoy llevás ${summary.mealsCount} comida(s) registrada(s): ${mealNames}. Acumulás ${summary.totalCalories} kcal, ${summary.totalProtein} g de proteína, ${summary.totalCarbs} g de carbohidratos y ${summary.totalFat} g de grasas.`
+    return { role: geminiRole as "user" | "model", parts: [{ text: msg.content }] }
+  })
 }
 
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.GEMINI_API_KEY
-
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Falta GEMINI_API_KEY en el backend web" },
+        { error: "Falta GEMINI_API_KEY en el servidor" },
         { status: 500 }
       )
     }
 
-    // El token vive en la cookie HttpOnly — no viaja como header desde el browser.
-    // La leemos server-side directamente del request de Next.js.
     const token = request.cookies.get("auth-token")?.value ?? null
     const profileId = request.headers.get("x-profile-id")
 
@@ -272,79 +178,139 @@ export async function POST(request: NextRequest) {
     }
 
     if (!profileId) {
-      return NextResponse.json(
-        { error: "Falta X-Profile-Id" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Falta X-Profile-Id" }, { status: 400 })
     }
 
     const body = (await request.json()) as AssistantRequest
     const messages = normalizeMessages(body)
 
     if (messages.length === 0) {
-      return NextResponse.json({ error: "Message is required" }, { status: 400 })
+      return NextResponse.json({ error: "Mensaje requerido" }, { status: 400 })
     }
 
     const lastUserMessage =
-      [...messages].reverse().find((m) => m.role === "user")?.content || ""
+      [...messages].reverse().find((m) => m.role === "user")?.content ?? ""
 
+    // Rechazar preguntas fuera del dominio de nutrición
     if (!isNutritionRelated(lastUserMessage)) {
       const response: AssistantResponse = {
         reply:
-          "Esta IA solo responde consultas sobre alimentación y nutrición. Podés preguntarme sobre proteínas, calorías, recetas saludables, macronutrientes, hidratación, objetivos del perfil y comidas del día.",
+          "Solo puedo ayudarte con temas de alimentación y nutrición: proteínas, calorías, recetas, macros, hidratación, hábitos alimentarios. ¿Querés preguntarme algo sobre eso?",
         usedTools: [],
         isNutritionRelated: false,
       }
-
       return NextResponse.json(response)
     }
 
     const usedTools: string[] = []
     const contextBlocks: string[] = []
 
-    let activeProfile: ActiveProfileToolResult | null = null
-    let favoriteRecipes: FavoriteRecipesToolResult | null = null
-    let todayMeals: TodayMealsToolResult | null = null
-    let nutritionSummary: NutritionSummaryToolResult | null = null
+    // Perfil activo: siempre se incluye para todas las consultas de nutrición.
+    // Es contexto esencial que personaliza cada respuesta (nombre, objetivo).
+    try {
+      const activeProfile = await getActiveProfileTool({ token, profileId })
+      usedTools.push("getActiveProfile")
 
-    if (shouldUseActiveProfileTool(lastUserMessage)) {
-      try {
-        activeProfile = await getActiveProfileTool({ token, profileId })
-        usedTools.push("getActiveProfile")
+      const today = new Date().toLocaleDateString("es-AR", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
 
-        contextBlocks.push(
-          `Perfil activo:
-- id: ${activeProfile.id}
-- nombre: ${activeProfile.name}
-- objetivo: ${activeProfile.goal ?? "sin objetivo definido"}
-- avatarUrl: ${activeProfile.avatarUrl ?? "sin avatar"}`
-        )
-      } catch (error) {
-        console.error("getActiveProfileTool error:", error)
-        contextBlocks.push("No se pudo obtener el perfil activo en este momento.")
-      }
+      contextBlocks.push(
+        [
+          `Perfil activo: ${activeProfile.name}`,
+          `Objetivo: ${activeProfile.goal ?? "sin objetivo definido"}`,
+          `Fecha de hoy: ${today}`,
+        ].join("\n")
+      )
+    } catch (error) {
+      console.error("getActiveProfileTool error:", error)
+      // No es fatal: Gemini responderá sin datos de perfil
     }
 
-    if (shouldUseFavoriteRecipesTool(lastUserMessage)) {
+    // Comidas del día + resumen nutricional: se incluyen cuando el usuario
+    // pregunta por su seguimiento personal o macros acumulados.
+    if (wantsPersonalFoodData(lastUserMessage)) {
       try {
-        favoriteRecipes = await getFavoriteRecipesTool({ token, profileId })
-        usedTools.push("getFavoriteRecipes")
+        const [todayMeals, nutritionSummary] = await Promise.all([
+          getTodayMealsTool({ token, profileId }),
+          getNutritionSummaryTool({ token, profileId }),
+        ])
 
-        if (favoriteRecipes.recipes.length === 0) {
-          contextBlocks.push(
-            "Recetas favoritas: el perfil activo no tiene recetas favoritas guardadas."
-          )
+        usedTools.push("getTodayMeals", "getNutritionSummary")
+
+        if (todayMeals.meals.length === 0) {
+          contextBlocks.push(`Comidas registradas hoy (${todayMeals.date}): ninguna todavía.`)
         } else {
-          const recipesText = favoriteRecipes.recipes
+          const mealsDetail = todayMeals.meals
             .map(
-              (recipe) =>
-                `- ${recipe.title} | descripción: ${recipe.description ?? "sin descripción"} | tiempo: ${
-                  recipe.timeMinutes ?? "sin dato"
-                } min | calorías: ${recipe.calories ?? "sin dato"}`
+              (m) =>
+                `  • ${m.title} (${m.type}): ${m.calories} kcal | ${m.protein}g prot | ${m.carbs}g carbs | ${m.fat}g grasas`
             )
             .join("\n")
 
-          contextBlocks.push(`Recetas favoritas del perfil activo:\n${recipesText}`)
+          contextBlocks.push(
+            [
+              `Comidas registradas hoy (${todayMeals.date}):`,
+              mealsDetail,
+              `Totales del día: ${nutritionSummary.totalCalories} kcal | ${nutritionSummary.totalProtein}g proteína | ${nutritionSummary.totalCarbs}g carbohidratos | ${nutritionSummary.totalFat}g grasas`,
+            ].join("\n")
+          )
+        }
+      } catch (error) {
+        console.error("todayMeals/nutritionSummary error:", error)
+        contextBlocks.push("No se pudieron obtener las comidas del día en este momento.")
+      }
+    }
+
+    // Resumen semanal (V2): se activa cuando el usuario pregunta por su progreso
+    // de los últimos días, tendencias o consistencia durante la semana.
+    if (wantsWeeklyProgress(lastUserMessage)) {
+      try {
+        const weekly = await getWeeklySummaryTool({ token, profileId })
+        usedTools.push("getWeeklySummary")
+
+        const dayLines = weekly.days
+          .map((d) =>
+            d.hasData
+              ? `  • ${d.dayName} ${d.date}: ${d.totalCalories} kcal | ${d.totalProtein}g prot | ${d.totalCarbs}g carbs | ${d.totalFat}g grasas (${d.mealsCount} comida${d.mealsCount !== 1 ? "s" : ""})`
+              : `  • ${d.dayName} ${d.date}: sin registro`
+          )
+          .join("\n")
+
+        contextBlocks.push(
+          [
+            `Resumen de los últimos 7 días (${weekly.weekStart} al ${weekly.weekEnd}):`,
+            dayLines,
+            `Días con registro: ${weekly.daysWithData} de 7`,
+            `Promedios (días con datos): ${weekly.avgCalories} kcal | ${weekly.avgProtein}g proteína | ${weekly.avgCarbs}g carbohidratos | ${weekly.avgFat}g grasas`,
+          ].join("\n")
+        )
+      } catch (error) {
+        console.error("getWeeklySummaryTool error:", error)
+        contextBlocks.push("No se pudo obtener el resumen semanal en este momento.")
+      }
+    }
+
+    // Recetas favoritas: solo cuando el usuario pregunta explícitamente por recetas.
+    if (wantsRecipes(lastUserMessage)) {
+      try {
+        const favoriteRecipes = await getFavoriteRecipesTool({ token, profileId })
+        usedTools.push("getFavoriteRecipes")
+
+        if (favoriteRecipes.recipes.length === 0) {
+          contextBlocks.push("Recetas favoritas: no hay recetas guardadas como favoritas aún.")
+        } else {
+          const recipesDetail = favoriteRecipes.recipes
+            .map(
+              (r) =>
+                `  • ${r.title}${r.description ? `: ${r.description}` : ""}${r.timeMinutes ? ` | ${r.timeMinutes} min` : ""}${r.calories ? ` | ${r.calories} kcal` : ""}`
+            )
+            .join("\n")
+
+          contextBlocks.push(`Recetas favoritas del usuario:\n${recipesDetail}`)
         }
       } catch (error) {
         console.error("getFavoriteRecipesTool error:", error)
@@ -352,116 +318,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (shouldUseTodayMealsTool(lastUserMessage)) {
-      try {
-        todayMeals = await getTodayMealsTool({ token, profileId })
-        usedTools.push("getTodayMeals")
-
-        if (todayMeals.meals.length === 0) {
-          contextBlocks.push(
-            `Comidas de hoy (${todayMeals.date}): no hay comidas registradas hoy.`
-          )
-        } else {
-          const mealsText = todayMeals.meals
-            .map(
-              (meal) =>
-                `- ${meal.title} | tipo: ${meal.type} | calorías: ${meal.calories ?? "sin dato"} | proteína: ${
-                  meal.protein ?? "sin dato"
-                } | carbs: ${meal.carbs ?? "sin dato"} | grasas: ${meal.fat ?? "sin dato"}`
-            )
-            .join("\n")
-
-          contextBlocks.push(`Comidas registradas hoy (${todayMeals.date}):\n${mealsText}`)
-        }
-      } catch (error) {
-        console.error("getTodayMealsTool error:", error)
-        contextBlocks.push("No se pudieron obtener las comidas de hoy en este momento.")
-      }
-    }
-
-    if (shouldUseNutritionSummaryTool(lastUserMessage)) {
-      try {
-        nutritionSummary = await getNutritionSummaryTool({ token, profileId })
-        usedTools.push("getNutritionSummary")
-
-        contextBlocks.push(
-          `Resumen nutricional de hoy (${nutritionSummary.date}):
-- comidas registradas: ${nutritionSummary.mealsCount}
-- calorías totales: ${nutritionSummary.totalCalories}
-- proteína total: ${nutritionSummary.totalProtein}
-- carbohidratos totales: ${nutritionSummary.totalCarbs}
-- grasas totales: ${nutritionSummary.totalFat}`
-        )
-      } catch (error) {
-        console.error("getNutritionSummaryTool error:", error)
-        contextBlocks.push("No se pudo obtener el resumen nutricional de hoy en este momento.")
-      }
-    }
-
-    // Respuestas directas para los casos críticos, sin depender de Gemini
-    if (
-      shouldUseActiveProfileTool(lastUserMessage) &&
-      !shouldUseFavoriteRecipesTool(lastUserMessage) &&
-      !shouldUseTodayMealsTool(lastUserMessage) &&
-      !shouldUseNutritionSummaryTool(lastUserMessage)
-    ) {
-      const response: AssistantResponse = {
-        reply: buildDirectObjectiveReply(activeProfile),
-        usedTools,
-        isNutritionRelated: true,
-      }
-
-      return NextResponse.json(response)
-    }
-
-    if (shouldUseTodayMealsTool(lastUserMessage) || shouldUseNutritionSummaryTool(lastUserMessage)) {
-      if (activeProfile === null && shouldUseActiveProfileTool(lastUserMessage)) {
-        try {
-          activeProfile = await getActiveProfileTool({ token, profileId })
-          if (!usedTools.includes("getActiveProfile")) {
-            usedTools.push("getActiveProfile")
-          }
-        } catch (error) {
-          console.error("late getActiveProfileTool error:", error)
-        }
-      }
-
-      const directMealsReply = buildDirectMealsReply(
-        nutritionSummary,
-        todayMeals,
-        activeProfile
-      )
-
-      const response: AssistantResponse = {
-        reply: directMealsReply,
-        usedTools,
-        isNutritionRelated: true,
-      }
-
-      return NextResponse.json(response)
-    }
-
-    const fullPrompt = `
-${NUTRITION_ASSISTANT_SYSTEM_PROMPT}
-
-${contextBlocks.length > 0 ? `Contexto real de la app:\n${contextBlocks.join("\n\n")}\n` : ""}
-
-Conversación:
-${buildConversation(messages)}
-
-Instrucciones adicionales:
-- Si usás contexto del perfil, comidas o recetas, basate solo en los datos recibidos.
-- Si faltan datos relevantes, decilo de forma clara y no los inventes.
-- Si una tool no devolvió datos, seguí respondiendo igual con prudencia.
-- Respondé al último mensaje del usuario.
-`.trim()
+    // Construir la conversación multi-turn para Gemini.
+    // El último mensaje del usuario lleva el contexto de la app adjunto.
+    const contents = buildGeminiContents(messages, contextBlocks)
 
     try {
       const ai = new GoogleGenAI({ apiKey })
 
       const result = await ai.models.generateContent({
         model: MODEL,
-        contents: fullPrompt,
+        contents,
+        config: {
+          systemInstruction: NUTRITION_ASSISTANT_SYSTEM_PROMPT,
+        },
       })
 
       const reply =
@@ -478,27 +347,17 @@ Instrucciones adicionales:
     } catch (geminiError) {
       console.error("Gemini generateContent error:", geminiError)
 
-      const fallbackReply =
-        activeProfile
-          ? `Pude recuperar parte de tu contexto. Tu objetivo actual es ${
-              activeProfile.goal ?? "sin objetivo definido"
-            }, pero no pude generar una respuesta completa en este momento.`
-          : "No pude generar una respuesta completa en este momento."
-
-      const response: AssistantResponse = {
-        reply: fallbackReply,
+      return NextResponse.json({
+        reply: "Hubo un problema al conectar con la IA. Intentá de nuevo en unos segundos.",
         usedTools,
         isNutritionRelated: true,
-      }
-
-      return NextResponse.json(response)
+      })
     }
   } catch (error) {
     console.error("POST /api/chat fatal error:", error)
-
     return NextResponse.json(
       {
-        reply: "Ocurrió un error interno al procesar la consulta.",
+        reply: "Ocurrió un error interno. Intentá de nuevo.",
         usedTools: [],
         isNutritionRelated: true,
       },

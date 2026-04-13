@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { SendHorizontal, Trash2 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ChatMessage } from "@/lib/types"
-import { apiFetch } from "@/lib/api"
+// No se usa apiFetch aquí: /api/chat es una ruta interna de Next.js,
+// no una ruta del backend Express. La cookie se envía automáticamente
+// en peticiones same-origin, y el profileId se agrega manualmente.
 
 export default function ChatPage() {
   const { messages, addMessage, clearMessages } = useChatContext()
@@ -26,6 +28,14 @@ export default function ChatPage() {
   const trimmed = input.trim()
   if (!trimmed || isTyping) return
 
+  // Capturamos el historial ANTES de agregar el nuevo mensaje,
+  // para enviar la conversación completa al servidor sin depender
+  // del ciclo de actualización de estado de React.
+  const historySnapshot = messages.map((m) => ({
+    role: m.role,
+    content: m.content,
+  }))
+
   const userMsg: ChatMessage = {
     id: `msg-${Date.now()}`,
     role: "user",
@@ -38,9 +48,20 @@ export default function ChatPage() {
   setIsTyping(true)
 
   try {
-    const res = await apiFetch("/api/chat", {
+    const profileId =
+      typeof window !== "undefined" ? localStorage.getItem("activeProfileId") : null
+
+    const res = await fetch("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ message: trimmed }),
+      headers: {
+        "Content-Type": "application/json",
+        // La cookie auth-token se envía automáticamente (same-origin).
+        // Solo necesitamos agregar el profileId manualmente.
+        ...(profileId ? { "x-profile-id": profileId } : {}),
+      },
+      body: JSON.stringify({
+        messages: [...historySnapshot, { role: "user", content: trimmed }],
+      }),
     })
 
     const data = await res.json()
