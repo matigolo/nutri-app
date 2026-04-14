@@ -116,6 +116,17 @@ export function AddMealDrawer({
       prev.map((item) => {
         if (item.id !== id) return item
 
+        // Al cambiar la unidad a porcion/unidad, resetear cantidad a 1
+        const newUnit = updates.unit ?? item.unit
+        const unitChanged = updates.unit !== undefined && updates.unit !== item.unit
+        if (unitChanged && updates.quantity === undefined) {
+          if (newUnit === "porcion" || newUnit === "unidad") {
+            updates = { ...updates, quantity: 1 }
+          } else if ((item.unit === "porcion" || item.unit === "unidad") && (newUnit === "gramos" || newUnit === "ml")) {
+            updates = { ...updates, quantity: 100 }
+          }
+        }
+
         const updated = { ...item, ...updates }
 
         if (
