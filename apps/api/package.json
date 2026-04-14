@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/index.js",
-    "start": "npx prisma migrate resolve --applied 20260319170225_add_recipes 2>/dev/null; npx prisma migrate deploy && node src/index.js"
+    "start": "npx prisma migrate resolve --applied 20260319170225_add_recipes 2>/dev/null; npx prisma migrate resolve --applied 20260406133842_add_profile_goal 2>/dev/null; npx prisma migrate deploy && node src/index.js"
   },
   "keywords": [],
   "author": "",
