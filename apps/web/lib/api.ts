@@ -31,10 +31,20 @@ const BACKEND_URL =
  * await apiFetch(`http://localhost:4000/recipes/${id}/favorite`, { method: "DELETE" })
  */
 export async function apiFetch(input: string, init: RequestInit = {}) {
-  // Reescribir URL absoluta del backend a path relativo del proxy
-  const path = input.startsWith(BACKEND_URL)
-    ? input.slice(BACKEND_URL.length)
-    : input
+  // Reescribir URL absoluta del backend a path relativo del proxy.
+  // Si el input es una URL absoluta (cualquier origen), extraemos solo pathname+search
+  // para que funcione tanto en local (localhost:4000) como en producción (Railway URL).
+  let path: string
+  if (input.startsWith("http://") || input.startsWith("https://")) {
+    try {
+      const u = new URL(input)
+      path = u.pathname + u.search
+    } catch {
+      path = input
+    }
+  } else {
+    path = input
+  }
 
   const proxyUrl = `/api/proxy${path}`
 
