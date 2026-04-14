@@ -8,7 +8,7 @@
 
 */
 -- AlterTable
-ALTER TABLE `recipe` ADD COLUMN `calories` INTEGER NULL,
+ALTER TABLE `Recipe` ADD COLUMN `calories` INTEGER NULL,
     ADD COLUMN `imageUrl` VARCHAR(191) NULL,
     ADD COLUMN `ingredients` JSON NOT NULL,
     ADD COLUMN `profileId` BIGINT NOT NULL,
