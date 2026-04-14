@@ -73,7 +73,7 @@ model Recipe {
   steps       Json
   timeMinutes Int?
   calories    Int?
-  imageUrl    String?
+  imageUrl    String?   @db.LongText
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

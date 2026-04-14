@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import { useProfiles } from "@/lib/app-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Search, X, ArrowLeft, Heart, Clock, Flame, Plus } from "lucide-react"
+import { Search, X, ArrowLeft, Heart, Clock, Flame, Plus, ImagePlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ApiRecipe, CreateRecipeInput } from "@/lib/types"
 import { RecipeCard } from "@/components/recipe-card"
@@ -40,6 +40,8 @@ export default function RecipesPage() {
   const [timeMinutes, setTimeMinutes] = useState("")
   const [calories, setCalories] = useState("")
   const [imageUrl, setImageUrl] = useState("")
+  const [imagePreview, setImagePreview] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
 //usestates para navegar, search, favoritos
   const { activeProfile } = useProfiles()
   const [search, setSearch] = useState("")
@@ -108,6 +110,49 @@ async function fetchFavorites(profileIdArg?: string) {
   }
 }
 
+  function resizeImageToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          const MAX_W = 800
+          const MAX_H = 600
+          let w = img.width
+          let h = img.height
+          if (w > MAX_W || h > MAX_H) {
+            const ratio = Math.min(MAX_W / w, MAX_H / h)
+            w = Math.round(w * ratio)
+            h = Math.round(h * ratio)
+          }
+          const canvas = document.createElement("canvas")
+          canvas.width = w
+          canvas.height = h
+          const ctx = canvas.getContext("2d")
+          if (!ctx) return reject(new Error("canvas error"))
+          ctx.drawImage(img, 0, 0, w, h)
+          resolve(canvas.toDataURL("image/jpeg", 0.75))
+        }
+        img.onerror = reject
+        img.src = e.target?.result as string
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const base64 = await resizeImageToBase64(file)
+      setImageUrl(base64)
+      setImagePreview(base64)
+    } catch {
+      setCreateError("No se pudo procesar la imagen")
+    }
+  }
+
   function resetCreateForm() {
   setTitle("")
   setDescription("")
@@ -116,7 +161,9 @@ async function fetchFavorites(profileIdArg?: string) {
   setTimeMinutes("")
   setCalories("")
   setImageUrl("")
+  setImagePreview("")
   setCreateError("")
+  if (fileInputRef.current) fileInputRef.current.value = ""
 }
 
 async function handleCreateRecipe(e: React.FormEvent) {
@@ -418,11 +465,19 @@ async function handleCreateRecipe(e: React.FormEvent) {
           ) : selectedRecipe ? (
             <>
               <div className="relative aspect-video w-full bg-secondary">
-                <div className="flex h-full items-center justify-center">
-                  <span className="text-5xl font-bold text-muted-foreground/20">
-                    {selectedRecipe.title.charAt(0)}
-                  </span>
-                </div>
+                {selectedRecipe.imageUrl ? (
+                  <img
+                    src={selectedRecipe.imageUrl}
+                    alt={selectedRecipe.title}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <span className="text-5xl font-bold text-muted-foreground/20">
+                      {selectedRecipe.title.charAt(0)}
+                    </span>
+                  </div>
+                )}
 
                 <DrawerClose className="absolute left-3 top-3 flex size-8 items-center justify-center rounded-full bg-background/60 backdrop-blur-sm">
                   <ArrowLeft className="size-4 text-foreground" />
@@ -638,14 +693,45 @@ async function handleCreateRecipe(e: React.FormEvent) {
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-foreground">
-                  URL de imagen
+                  Foto de la receta (opcional)
                 </label>
-                <Input
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="rounded-xl"
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileChange}
                 />
+                {imagePreview ? (
+                  <div className="relative overflow-hidden rounded-xl border border-border">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="h-40 w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageUrl("")
+                        setImagePreview("")
+                        if (fileInputRef.current) fileInputRef.current.value = ""
+                      }}
+                      className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-background/70 text-foreground backdrop-blur-sm hover:bg-background"
+                      aria-label="Quitar imagen"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card py-6 text-sm text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+                  >
+                    <ImagePlus className="size-4" />
+                    Elegir foto del dispositivo
+                  </button>
+                )}
               </div>
 
               {createError ? (

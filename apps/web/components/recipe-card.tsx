@@ -29,11 +29,19 @@ export function RecipeCard({
       aria-label={`Ver receta: ${recipe.title}`}
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-secondary">
-        <div className="flex h-full items-center justify-center">
-          <span className="text-3xl font-bold text-muted-foreground/30">
-            {recipe.title.charAt(0)}
-          </span>
-        </div>
+        {recipe.imageUrl ? (
+          <img
+            src={recipe.imageUrl}
+            alt={recipe.title}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <span className="text-3xl font-bold text-muted-foreground/30">
+              {recipe.title.charAt(0)}
+            </span>
+          </div>
+        )}
 
         <button
           onClick={(e) => {
