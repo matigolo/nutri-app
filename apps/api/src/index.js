@@ -58,7 +58,7 @@ app.options(/.*/, cors(corsOptions))
  * Límite de tamaño del body JSON: 100kb.
  * Protege contra ataques de DoS por payloads demasiado grandes.
  */
-app.use(express.json({ limit: "100kb" }))
+app.use(express.json({ limit: "10mb" }))
 
 /**
  * Rate limiting para endpoints de autenticación.
@@ -640,13 +640,10 @@ app.post("/recipes", auth, profileContext, async (req, res) => {
     }
 
     if (imageUrl) {
-      try {
-        const parsed = new URL(imageUrl)
-        if (!["http:", "https:"].includes(parsed.protocol)) {
-          return res.status(400).json({ error: "imageUrl debe ser una URL http o https válida" })
-        }
-      } catch {
-        return res.status(400).json({ error: "imageUrl no es una URL válida" })
+      const isDataUrl = imageUrl.startsWith("data:image/")
+      const isHttpUrl = imageUrl.startsWith("http://") || imageUrl.startsWith("https://")
+      if (!isDataUrl && !isHttpUrl) {
+        return res.status(400).json({ error: "imageUrl debe ser una URL http/https o una imagen en base64" })
       }
     }
 
