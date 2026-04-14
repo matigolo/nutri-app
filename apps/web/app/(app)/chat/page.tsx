@@ -24,8 +24,8 @@ export default function ChatPage() {
     }
   }, [messages, isTyping])
 
-  async function handleSend() {
-  const trimmed = input.trim()
+  async function handleSend(overrideText?: string) {
+  const trimmed = (overrideText ?? input).trim()
   if (!trimmed || isTyping) return
 
   // Capturamos el historial ANTES de agregar el nuevo mensaje,
@@ -133,7 +133,7 @@ export default function ChatPage() {
               {["Cuanta proteina necesito?", "Que desayunar para bajar de peso?", "Beneficios de la avena"].map((suggestion) => (
                 <button
                   key={suggestion}
-                  onClick={() => { setInput(suggestion); inputRef.current?.focus() }}
+                  onClick={() => handleSend(suggestion)}
                   className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {suggestion}
