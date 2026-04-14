@@ -347,6 +347,20 @@ export async function POST(request: NextRequest) {
     } catch (geminiError) {
       console.error("Gemini generateContent error:", geminiError)
 
+      const errMsg =
+        geminiError instanceof Error ? geminiError.message : String(geminiError)
+      const isRateLimit =
+        errMsg.includes("429") ||
+        errMsg.toUpperCase().includes("RESOURCE_EXHAUSTED") ||
+        errMsg.toLowerCase().includes("quota")
+
+      if (isRateLimit) {
+        return NextResponse.json(
+          { error: "Alcanzaste el límite de solicitudes de IA. Esperá unos segundos e intentá de nuevo." },
+          { status: 429 }
+        )
+      }
+
       return NextResponse.json({
         reply: "Hubo un problema al conectar con la IA. Intentá de nuevo en unos segundos.",
         usedTools,

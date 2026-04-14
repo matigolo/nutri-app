@@ -6,6 +6,7 @@ import { ChatMessage as ChatMessageBubble, TypingIndicator } from "@/components/
 import { Button } from "@/components/ui/button"
 import { SendHorizontal, Trash2 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { toast } from "sonner"
 import type { ChatMessage } from "@/lib/types"
 // No se usa apiFetch aquí: /api/chat es una ruta interna de Next.js,
 // no una ruta del backend Express. La cookie se envía automáticamente
@@ -65,6 +66,14 @@ export default function ChatPage() {
     })
 
     const data = await res.json()
+
+    if (res.status === 429) {
+      toast.error("Límite de solicitudes alcanzado", {
+        description: data.error || "Esperá unos segundos e intentá de nuevo.",
+        duration: 6000,
+      })
+      return
+    }
 
     const aiMsg: ChatMessage = {
       id: `msg-${Date.now()}-ai`,
