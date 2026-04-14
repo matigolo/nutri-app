@@ -1,0 +1,25 @@
+# Environment variables — NUNCA commitear
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma generated (opcional, se puede commitear el schema pero no las migraciones generadas automáticamente)
+# prisma/migrations/ — descomenta si no querés versionar migraciones
