@@ -120,6 +120,7 @@ export default function ProfilePage() {
       <div className="mt-8 text-center">
         <p className="text-[11px] text-muted-foreground/50">NutriApp v0.1.0</p>
         <p className="text-[10px] text-muted-foreground/30">Hecho con Next.js</p>
+        <p className="text-[10px] text-muted-foreground/30">Powered by Matias Golonbek</p>
       </div>
 
       {/* Goal Dialog */}
