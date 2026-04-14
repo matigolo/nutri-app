@@ -1,13 +1,26 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useProfiles } from "@/lib/app-context"
 import { Button } from "@/components/ui/button"
-import { UserCircle, Users, LogOut, ChevronRight, Moon } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { UserCircle, Users, LogOut, ChevronRight, Target } from "lucide-react"
+import { toast } from "sonner"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 
 export default function ProfilePage() {
   const router = useRouter()
-  const { activeProfile, logout } = useProfiles()
+  const { activeProfile, logout, updateProfileGoal } = useProfiles()
+  const [goalDialogOpen, setGoalDialogOpen] = useState(false)
+  const [goalInput, setGoalInput] = useState("")
+  const [savingGoal, setSavingGoal] = useState(false)
 
   function handleSwitchProfile() {
     router.push("/profiles")
@@ -16,6 +29,24 @@ export default function ProfilePage() {
   function handleLogout() {
     logout()
     router.push("/login")
+  }
+
+  function openGoalDialog() {
+    setGoalInput(activeProfile?.goal ?? "")
+    setGoalDialogOpen(true)
+  }
+
+  async function handleSaveGoal() {
+    if (!activeProfile) return
+    setSavingGoal(true)
+    const ok = await updateProfileGoal(activeProfile.id, goalInput.trim() || null)
+    setSavingGoal(false)
+    if (ok) {
+      setGoalDialogOpen(false)
+      toast.success("Objetivo actualizado")
+    } else {
+      toast.error("No se pudo actualizar el objetivo")
+    }
   }
 
   return (
@@ -42,7 +73,12 @@ export default function ProfilePage() {
         </div>
         <div>
           <p className="text-base font-semibold text-foreground">{activeProfile?.name}</p>
-          <p className="text-xs text-muted-foreground">Perfil activo</p>
+          {activeProfile?.goal && (
+            <p className="text-xs text-muted-foreground">{activeProfile.goal}</p>
+          )}
+          {!activeProfile?.goal && (
+            <p className="text-xs text-muted-foreground">Sin objetivo definido</p>
+          )}
         </div>
       </div>
 
@@ -55,10 +91,10 @@ export default function ProfilePage() {
           onClick={handleSwitchProfile}
         />
         <MenuItem
-          icon={Moon}
-          label="Tema oscuro"
-          subtitle="Siempre activado"
-          disabled
+          icon={Target}
+          label="Cambiar objetivo"
+          subtitle={activeProfile?.goal ?? "Sin objetivo definido"}
+          onClick={openGoalDialog}
         />
         <MenuItem
           icon={UserCircle}
@@ -85,6 +121,55 @@ export default function ProfilePage() {
         <p className="text-[11px] text-muted-foreground/50">NutriApp v0.1.0</p>
         <p className="text-[10px] text-muted-foreground/30">Hecho con Next.js</p>
       </div>
+
+      {/* Goal Dialog */}
+      <Dialog open={goalDialogOpen} onOpenChange={setGoalDialogOpen}>
+        <DialogContent className="max-w-sm rounded-2xl border-border bg-card px-6 py-6">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground">
+              Cambiar objetivo
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Describe tu objetivo nutricional. El asistente IA lo usara como contexto.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 flex flex-col gap-4">
+            <Input
+              value={goalInput}
+              onChange={(e) => setGoalInput(e.target.value)}
+              placeholder="Ej: Bajar de peso, ganar musculo..."
+              className="h-10 rounded-xl border-border bg-background text-foreground"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveGoal()
+              }}
+              autoFocus
+            />
+
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                className="flex-1 rounded-xl"
+                onClick={() => setGoalDialogOpen(false)}
+                disabled={savingGoal}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 rounded-xl bg-foreground text-background hover:bg-foreground/90"
+                onClick={handleSaveGoal}
+                disabled={savingGoal}
+              >
+                {savingGoal ? (
+                  <div className="size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                ) : (
+                  "Guardar"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

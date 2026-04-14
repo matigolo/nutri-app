@@ -25,6 +25,7 @@ interface ProfileContextType {
   setActiveProfile: (profile: Profile | null) => void
   addProfile: (name: string, goal: string | null) => void
   removeProfile: (id: string) => void
+  updateProfileGoal: (id: string, goal: string | null) => Promise<boolean>
   logout: () => void
   isLoggedIn: boolean
   setIsLoggedIn: (v: boolean) => void
@@ -278,6 +279,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [activeProfile?.id, setActiveProfile]
   )
 
+  const updateProfileGoal = useCallback(
+    async (id: string, goal: string | null): Promise<boolean> => {
+      try {
+        const res = await apiFetch(`http://localhost:4000/profiles/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ goal }),
+        })
+        if (!res.ok) return false
+        setProfiles((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, goal } : p))
+        )
+        setActiveProfileState((prev) =>
+          prev && prev.id === id ? { ...prev, goal } : prev
+        )
+        return true
+      } catch {
+        return false
+      }
+    },
+    []
+  )
+
   const logout = useCallback(() => {
     setIsLoggedIn(false)
     setActiveProfile(null)
@@ -483,6 +507,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setActiveProfile,
           addProfile,
           removeProfile,
+          updateProfileGoal,
           logout,
           isLoggedIn,
           setIsLoggedIn,

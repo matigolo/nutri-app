@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { useProfiles, useUI } from "@/lib/app-context"
 import { BottomNavbar } from "@/components/bottom-navbar"
 import { AddMealDrawer } from "@/components/add-meal-drawer"
+import { Toaster } from "@/components/ui/sonner"
 import { formatDate } from "@/lib/nutrition-helpers"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -47,6 +48,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           selectedDate={formatDate(new Date())}
         />
       )}
+      <Toaster position="top-center" richColors />
     </div>
   )
 }

@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Check, X } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import type { MealEntry, MealItem, FoodSearchItem } from "@/lib/types"
 
@@ -207,6 +208,9 @@ export function AddMealDrawer({
 
       setSaving(false)
       handleOpenChange(false)
+      toast.success("Comida guardada", {
+        description: `${MEAL_TYPES.find((t) => t.value === mealType)?.label ?? "Comida"} agregada correctamente`,
+      })
     } catch (error) {
       console.error(error)
       setErrors(["Ocurrió un error al guardar la comida"])

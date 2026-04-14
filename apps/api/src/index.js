@@ -341,6 +341,49 @@ app.delete("/profiles/:id", auth, async (req, res) => {
 });
 
 /**
+ * Actualiza el campo goal de un perfil.
+ *
+ * @param {string} id - ID del perfil
+ * @body {string|null} goal - Nuevo objetivo del perfil
+ * @returns {200} Perfil actualizado
+ */
+app.patch("/profiles/:id", auth, async (req, res) => {
+  try {
+    const profileIdStr = req.params.id;
+    let profileId;
+    try {
+      profileId = BigInt(profileIdStr);
+    } catch {
+      return res.status(400).json({ error: "id inválido" });
+    }
+
+    const profile = await prisma.profile.findFirst({
+      where: { id: profileId, userId: req.userId },
+    });
+
+    if (!profile) {
+      return res.status(404).json({ error: "perfil no encontrado" });
+    }
+
+    const { goal } = req.body;
+
+    const updated = await prisma.profile.update({
+      where: { id: profileId },
+      data: { goal: goal ?? null },
+    });
+
+    return res.json({
+      id: updated.id.toString(),
+      name: updated.name,
+      goal: updated.goal,
+    });
+  } catch (err) {
+    console.error("ERROR PATCH /profiles/:id:", err);
+    return res.status(500).json({ error: "error interno del servidor" });
+  }
+});
+
+/**
  * Devuelve el perfil activo validado por el middleware profileContext.
  * Requiere el header X-Profile-Id además del token JWT.
  *
