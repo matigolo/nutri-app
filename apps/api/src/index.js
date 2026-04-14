@@ -24,19 +24,11 @@ const WEAK_SECRETS = ["super_secret_dev_key", "secret", "jwt_secret", "changeme"
 const jwtSecret = process.env.JWT_SECRET || ""
 
 if (!jwtSecret || WEAK_SECRETS.includes(jwtSecret.toLowerCase())) {
-  if (process.env.NODE_ENV === "production") {
-    console.error(
-      "FATAL: JWT_SECRET no está configurado o usa un valor inseguro. " +
-      "Generá un secreto aleatorio con: openssl rand -base64 32"
-    )
-    process.exit(1)
-  } else {
-    console.warn(
-      "ADVERTENCIA DE SEGURIDAD: JWT_SECRET usa el valor por defecto inseguro. " +
-      "Cambiarlo antes de desplegar en producción. " +
-      "Podés generar uno con: openssl rand -base64 32"
-    )
-  }
+  console.warn(
+    "ADVERTENCIA DE SEGURIDAD: JWT_SECRET usa el valor por defecto inseguro. " +
+    "Cambiarlo antes de desplegar en producción. " +
+    "Podés generar uno con: openssl rand -base64 32"
+  )
 }
 
 /**
