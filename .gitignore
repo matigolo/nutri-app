@@ -23,3 +23,6 @@ Thumbs.db
 
 # Prisma generated (opcional, se puede commitear el schema pero no las migraciones generadas automáticamente)
 # prisma/migrations/ — descomenta si no querés versionar migraciones
+
+CLAUDE.md
+docs/
