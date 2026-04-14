@@ -10,6 +10,10 @@ require("dotenv").config()
 
 const app = express()
 
+// Necesario para que express-rate-limit funcione correctamente detrás del
+// proxy de Railway (y cualquier otro reverse proxy en producción).
+app.set("trust proxy", 1)
+
 /**
  * Validación de variables de entorno críticas al arrancar.
  * En producción, un JWT_SECRET débil o ausente es un riesgo crítico porque
