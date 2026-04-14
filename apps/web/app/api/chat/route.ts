@@ -361,11 +361,10 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      return NextResponse.json({
-        reply: "Hubo un problema al conectar con la IA. Intentá de nuevo en unos segundos.",
-        usedTools,
-        isNutritionRelated: true,
-      })
+      return NextResponse.json(
+        { error: "Hubo un problema al conectar con la IA. Intentá de nuevo en unos segundos." },
+        { status: 503 }
+      )
     }
   } catch (error) {
     console.error("POST /api/chat fatal error:", error)

@@ -67,20 +67,20 @@ export default function ChatPage() {
 
     const data = await res.json()
 
-    if (res.status === 429) {
-      toast.error("Límite de solicitudes alcanzado", {
-        description: data.error || "Esperá unos segundos e intentá de nuevo.",
-        duration: 6000,
-      })
+    if (!res.ok) {
+      const description = data.error || "Intentá de nuevo en unos segundos."
+      if (res.status === 429) {
+        toast.error("Límite de solicitudes alcanzado", { description, duration: 6000 })
+      } else {
+        toast.error("Error al conectar con la IA", { description, duration: 5000 })
+      }
       return
     }
 
     const aiMsg: ChatMessage = {
       id: `msg-${Date.now()}-ai`,
       role: "assistant",
-      content: res.ok
-        ? data.reply || "No pude responder en este momento."
-        : data.error || "Hubo un error. Intentá de nuevo.",
+      content: data.reply || "No pude responder en este momento.",
       timestamp: new Date().toISOString(),
     }
 
@@ -179,7 +179,7 @@ export default function ChatPage() {
             }}
           />
           <Button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={!input.trim() || isTyping}
             size="icon"
             className="size-10 shrink-0 rounded-xl bg-foreground text-background hover:bg-foreground/90 disabled:opacity-30"
