@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { AppProvider } from "@/lib/app-context"
+import { PostHogProvider } from "@/lib/posthog-provider"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -35,9 +36,11 @@ export default function RootLayout({
   return (
     <html lang="es" className="dark">
       <body className="font-sans antialiased">
-        <AppProvider>
-          {children}
-        </AppProvider>
+        <PostHogProvider>
+          <AppProvider>
+            {children}
+          </AppProvider>
+        </PostHogProvider>
         <Analytics />
       </body>
     </html>
