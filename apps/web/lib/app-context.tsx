@@ -23,9 +23,9 @@ interface ProfileContextType {
   profiles: Profile[]
   activeProfile: Profile | null
   setActiveProfile: (profile: Profile | null) => void
-  addProfile: (name: string, goal: string | null) => void
+  addProfile: (name: string, goal: string | null, age?: number | null, height?: number | null) => void
   removeProfile: (id: string) => void
-  updateProfileGoal: (id: string, goal: string | null) => Promise<boolean>
+  updateProfile: (id: string, data: { goal?: string | null; age?: number | null; height?: number | null }) => Promise<boolean>
   logout: () => void
   isLoggedIn: boolean
   setIsLoggedIn: (v: boolean) => void
@@ -61,8 +61,10 @@ export function useMeals() {
 // --- Weight Context ---
 interface WeightContextType {
   weights: WeightRecord[]
-  addWeight: (record: WeightRecord) => void
+  loadingWeights: boolean
+  addWeight: (record: WeightRecord) => Promise<boolean>
   getWeightByDate: (date: string) => WeightRecord | undefined
+  refreshWeights: () => Promise<void>
 }
 
 const WeightContext = createContext<WeightContextType | null>(null)
@@ -185,6 +187,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [meals, setMeals] = useState<MealEntry[]>([])
   const [loadingMeals, setLoadingMeals] = useState(false)
   const [weights, setWeights] = useState<WeightRecord[]>([])
+  const [loadingWeights, setLoadingWeights] = useState(false)
   const [favorites, setFavorites] = useState<string[]>([])
   const [messagesByScope, setMessagesByScope] = useState<Record<string, ChatMessage[]>>({})
   const [addMealDrawerOpen, setAddMealDrawerOpen] = useState(false)
@@ -195,7 +198,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setActiveProfile = useCallback((profile: Profile | null) => {
     setActiveProfileState(profile)
-
     if (typeof window !== "undefined") {
       if (profile) {
         localStorage.setItem("activeProfileId", String(profile.id))
@@ -209,10 +211,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIsLoggedIn(loadFromStorage("nutri-logged-in", false))
     setProfiles(loadFromStorage("nutri-profiles", defaultProfiles))
 
-    const storedActiveProfile = loadFromStorage<Profile | null>(
-      "nutri-active-profile",
-      null
-    )
+    const storedActiveProfile = loadFromStorage<Profile | null>("nutri-active-profile", null)
     setActiveProfileState(storedActiveProfile)
 
     if (typeof window !== "undefined") {
@@ -223,7 +222,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    setWeights(loadFromStorage("nutri-weights", []))
     setFavorites(loadFromStorage("nutri-favorites", []))
     setMessagesByScope(loadFromStorage("nutri-messages-by-scope", {}))
     setHydrated(true)
@@ -242,19 +240,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [activeProfile, hydrated])
 
   useEffect(() => {
-    if (hydrated) saveToStorage("nutri-weights", weights)
-  }, [weights, hydrated])
-
-  useEffect(() => {
     if (hydrated) saveToStorage("nutri-favorites", favorites)
   }, [favorites, hydrated])
 
   useEffect(() => {
-  if (hydrated) saveToStorage("nutri-messages-by-scope", messagesByScope)
-}, [messagesByScope, hydrated])
+    if (hydrated) saveToStorage("nutri-messages-by-scope", messagesByScope)
+  }, [messagesByScope, hydrated])
 
   const addProfile = useCallback(
-    (name: string, goal: string | null) => {
+    (name: string, goal: string | null, age?: number | null, height?: number | null) => {
       if (profiles.length >= 5) return
 
       const newProfile: Profile = {
@@ -262,6 +256,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         userId: "",
         name,
         goal,
+        age: age ?? null,
+        height: height ?? null,
         avatarUrl: "",
         createdAt: new Date(),
       }
@@ -279,20 +275,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [activeProfile?.id, setActiveProfile]
   )
 
-  const updateProfileGoal = useCallback(
-    async (id: string, goal: string | null): Promise<boolean> => {
+  const updateProfile = useCallback(
+    async (id: string, data: { goal?: string | null; age?: number | null; height?: number | null }): Promise<boolean> => {
       try {
         const res = await apiFetch(`http://localhost:4000/profiles/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ goal }),
+          body: JSON.stringify(data),
         })
         if (!res.ok) return false
         setProfiles((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, goal } : p))
+          prev.map((p) => (p.id === id ? { ...p, ...data } : p))
         )
         setActiveProfileState((prev) =>
-          prev && prev.id === id ? { ...prev, goal } : prev
+          prev && prev.id === id ? { ...prev, ...data } : prev
         )
         return true
       } catch {
@@ -306,7 +302,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIsLoggedIn(false)
     setActiveProfile(null)
     setMeals([])
+    setWeights([])
   }, [setActiveProfile])
+
+  // ---- Meals ----
 
   const refreshMeals = useCallback(async () => {
     if (!activeProfile?.id || !isLoggedIn) {
@@ -316,11 +315,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       setLoadingMeals(true)
-
-      const res = await apiFetch("http://localhost:4000/meals", {
-        method: "GET",
-      })
-
+      const res = await apiFetch("http://localhost:4000/meals", { method: "GET" })
       const data = await res.json()
 
       if (!res.ok) {
@@ -366,15 +361,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         const res = await apiFetch("http://localhost:4000/meals", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         })
 
         const text = await res.text()
         let data: any = {}
-
         try {
           data = text ? JSON.parse(text) : {}
         } catch {
@@ -383,7 +375,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         if (!res.ok) {
           console.error("POST /meals status:", res.status)
-          console.error("POST /meals raw response:", text)
           console.error("POST /meals parsed response:", data)
           return false
         }
@@ -405,12 +396,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return
-
     if (!isLoggedIn || !activeProfile?.id) {
       setMeals([])
       return
     }
-
     refreshMeals()
   }, [hydrated, isLoggedIn, activeProfile?.id, refreshMeals])
 
@@ -432,14 +421,75 @@ export function AppProvider({ children }: { children: ReactNode }) {
     .filter((v, i, a) => a.indexOf(v) === i)
     .slice(-5) as string[]
 
-  const addWeight = useCallback((record: WeightRecord) => {
-    setWeights((prev) => {
-      const filtered = prev.filter(
-        (w) => !(w.date === record.date && w.profileId === record.profileId)
-      )
-      return [...filtered, record]
-    })
-  }, [])
+  // ---- Weights (backend) ----
+
+  const refreshWeights = useCallback(async () => {
+    if (!activeProfile?.id || !isLoggedIn) {
+      setWeights([])
+      return
+    }
+
+    try {
+      setLoadingWeights(true)
+      const res = await apiFetch("http://localhost:4000/weights", { method: "GET" })
+      const data = await res.json()
+
+      if (!res.ok) {
+        console.error("GET /weights error:", data)
+        setWeights([])
+        return
+      }
+
+      const mapped: WeightRecord[] = Array.isArray(data.weights)
+        ? data.weights.map((w: any) => ({
+            id: String(w.id),
+            profileId: String(activeProfile.id),
+            date: w.date,
+            weight: Number(w.weight),
+          }))
+        : []
+
+      setWeights(mapped)
+    } catch (error) {
+      console.error("refreshWeights error:", error)
+      setWeights([])
+    } finally {
+      setLoadingWeights(false)
+    }
+  }, [activeProfile?.id, isLoggedIn])
+
+  const addWeight = useCallback(
+    async (record: WeightRecord): Promise<boolean> => {
+      try {
+        const res = await apiFetch("http://localhost:4000/weights", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: record.date, weight: record.weight }),
+        })
+
+        if (!res.ok) {
+          console.error("POST /weights error:", res.status)
+          return false
+        }
+
+        await refreshWeights()
+        return true
+      } catch (error) {
+        console.error("addWeight error:", error)
+        return false
+      }
+    },
+    [refreshWeights]
+  )
+
+  useEffect(() => {
+    if (!hydrated) return
+    if (!isLoggedIn || !activeProfile?.id) {
+      setWeights([])
+      return
+    }
+    refreshWeights()
+  }, [hydrated, isLoggedIn, activeProfile?.id, refreshWeights])
 
   const getWeightByDate = useCallback(
     (date: string) => {
@@ -450,6 +500,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [weights, activeProfile]
   )
+
+  // ---- Favorites (local — sincronizados con backend en RecipesPage) ----
 
   const toggleFavorite = useCallback((recipeId: string) => {
     setFavorites((prev) =>
@@ -463,6 +515,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (recipeId: string) => favorites.includes(recipeId),
     [favorites]
   )
+
+  // ---- Chat ----
+
   const chatScopeKey =
     activeProfile?.id && activeProfile?.userId
       ? `${activeProfile.userId}:${activeProfile.id}`
@@ -472,22 +527,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const messages = messagesByScope[chatScopeKey] ?? []
 
-
   const addMessage = useCallback((msg: ChatMessage) => {
     setMessagesByScope((prev) => {
       const current = prev[chatScopeKey] ?? []
-      return {
-        ...prev,
-        [chatScopeKey]: [...current, msg],
-      }
+      return { ...prev, [chatScopeKey]: [...current, msg] }
     })
   }, [chatScopeKey])
 
   const clearMessages = useCallback(() => {
-    setMessagesByScope((prev) => ({
-      ...prev,
-      [chatScopeKey]: [],
-    }))
+    setMessagesByScope((prev) => ({ ...prev, [chatScopeKey]: [] }))
   }, [chatScopeKey])
 
   if (!hydrated) {
@@ -499,7 +547,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <UIContext.Provider value={{ addMealDrawerOpen, setAddMealDrawerOpen, selectedDate,setSelectedDate }}>
+    <UIContext.Provider value={{ addMealDrawerOpen, setAddMealDrawerOpen, selectedDate, setSelectedDate }}>
       <ProfileContext.Provider
         value={{
           profiles,
@@ -507,7 +555,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setActiveProfile,
           addProfile,
           removeProfile,
-          updateProfileGoal,
+          updateProfile,
           logout,
           isLoggedIn,
           setIsLoggedIn,
@@ -524,7 +572,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             recentFoodIds,
           }}
         >
-          <WeightContext.Provider value={{ weights, addWeight, getWeightByDate }}>
+          <WeightContext.Provider value={{ weights, loadingWeights, addWeight, getWeightByDate, refreshWeights }}>
             <FavoritesContext.Provider
               value={{ favorites, toggleFavorite, isFavorite }}
             >

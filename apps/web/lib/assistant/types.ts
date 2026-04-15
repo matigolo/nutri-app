@@ -23,6 +23,8 @@ export type ActiveProfileToolResult = {
   id: string
   name: string
   goal: string | null
+  age: number | null
+  height: number | null
   avatarUrl: string | null
 }
 

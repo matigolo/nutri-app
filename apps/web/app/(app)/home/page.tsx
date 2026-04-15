@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react"
 import { useProfiles, useMeals, useWeights, useUI } from "@/lib/app-context"
 import { formatDate, calculateDayTotals } from "@/lib/nutrition-helpers"
+import { toast } from "sonner"
 import { WeightInputModal } from "@/components/weight-input-modal"
 import { AddMealDrawer } from "@/components/add-meal-drawer"
 import { DayDetailDrawer } from "@/components/day-detail-drawer"
@@ -67,14 +68,15 @@ useEffect(() => {
 
   const todayStr = formatDate(today)
 
-  function handleSaveWeight(w: number) {
+  async function handleSaveWeight(w: number) {
     if (!activeProfile) return
-    addWeight({
+    const ok = await addWeight({
       id: `w-${Date.now()}`,
       profileId: activeProfile.id,
       date: selectedDate,
       weight: w,
     })
+    if (!ok) toast.error("No se pudo guardar el peso. Intentá de nuevo.")
   }
 
 function handleDayClick(dateStr: string) {

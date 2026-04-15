@@ -3,7 +3,9 @@ export interface Profile {
   userId: string
   name: string
   goal: string | null
-  avatarUrl: string,
+  age: number | null
+  height: number | null
+  avatarUrl: string
   createdAt: Date
 }
 

@@ -34,6 +34,8 @@ export default function ProfilesPage() {
   const [addingNew, setAddingNew] = useState(false)
   const [newName, setNewName] = useState("")
   const [newGoal, setNewGoal] = useState("")
+  const [newAge, setNewAge] = useState("")
+  const [newHeight, setNewHeight] = useState("")
 
     async function fetchProfiles() {
       // apiFetch usa el proxy: el token viaja en la cookie HttpOnly, no en localStorage
@@ -62,12 +64,17 @@ export default function ProfilesPage() {
   }
 
   // apiFetch usa el proxy con la cookie HttpOnly — sin necesidad de leer el token
+  const ageNum = newAge.trim() ? parseInt(newAge.trim()) : undefined
+  const heightNum = newHeight.trim() ? parseInt(newHeight.trim()) : undefined
+
   const res = await apiFetch("http://localhost:4000/profiles", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       name: newName.trim(),
       goal: newGoal,
+      ...(ageNum !== undefined ? { age: ageNum } : {}),
+      ...(heightNum !== undefined ? { height: heightNum } : {}),
     }),
   })
 
@@ -81,6 +88,8 @@ export default function ProfilesPage() {
 
   setNewName("")
   setNewGoal("")
+  setNewAge("")
+  setNewHeight("")
   setAddingNew(false)
 
   await fetchProfiles()
@@ -230,6 +239,27 @@ async function handleLogout() {
               ))}
             </select>
 
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                value={newAge}
+                onChange={(e) => setNewAge(e.target.value)}
+                placeholder="Edad (opcional)"
+                min={1}
+                max={120}
+                className="h-10 rounded-xl border-border bg-card text-foreground"
+              />
+              <Input
+                type="number"
+                value={newHeight}
+                onChange={(e) => setNewHeight(e.target.value)}
+                placeholder="Altura cm (opcional)"
+                min={50}
+                max={300}
+                className="h-10 rounded-xl border-border bg-card text-foreground"
+              />
+            </div>
+
             <div className="flex items-center justify-center gap-2">
               <Button
                 size="icon"
@@ -247,6 +277,8 @@ async function handleLogout() {
                   setAddingNew(false)
                   setNewName("")
                   setNewGoal("")
+                  setNewAge("")
+                  setNewHeight("")
                 }}
                 className="size-10 rounded-xl"
                 aria-label="Cancelar"

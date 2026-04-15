@@ -218,13 +218,45 @@ export async function POST(request: NextRequest) {
         day: "numeric",
       })
 
-      contextBlocks.push(
-        [
-          `Perfil activo: ${activeProfile.name}`,
-          `Objetivo: ${activeProfile.goal ?? "sin objetivo definido"}`,
-          `Fecha de hoy: ${today}`,
-        ].join("\n")
-      )
+      const profileLines = [
+        `Perfil activo: ${activeProfile.name}`,
+        `Objetivo: ${activeProfile.goal ?? "sin objetivo definido"}`,
+        `Fecha de hoy: ${today}`,
+      ]
+
+      if (activeProfile.age != null) {
+        profileLines.push(`Edad: ${activeProfile.age} años`)
+      }
+      if (activeProfile.height != null) {
+        profileLines.push(`Altura: ${activeProfile.height} cm`)
+      }
+
+      // Peso más reciente para cálculo de TDEE
+      try {
+        const weightsRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}/weights`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "X-Profile-Id": profileId,
+            },
+            cache: "no-store",
+          }
+        )
+        if (weightsRes.ok) {
+          const weightsData = await weightsRes.json()
+          const latestWeight = Array.isArray(weightsData.weights) && weightsData.weights.length > 0
+            ? weightsData.weights[0]
+            : null
+          if (latestWeight) {
+            profileLines.push(`Peso más reciente: ${latestWeight.weight} kg (registrado el ${latestWeight.date})`)
+          }
+        }
+      } catch {
+        // No es fatal: continuar sin peso
+      }
+
+      contextBlocks.push(profileLines.join("\n"))
     } catch (error) {
       console.error("getActiveProfileTool error:", error)
       // No es fatal: Gemini responderá sin datos de perfil

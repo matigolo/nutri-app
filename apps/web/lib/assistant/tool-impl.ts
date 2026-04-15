@@ -64,6 +64,8 @@ export async function getActiveProfileTool(params: {
     id: String(activeProfile.id),
     name: activeProfile.name,
     goal: activeProfile.goal ?? null,
+    age: activeProfile.age != null ? Number(activeProfile.age) : null,
+    height: activeProfile.height != null ? Number(activeProfile.height) : null,
     avatarUrl: activeProfile.avatarUrl ?? null,
   }
 }

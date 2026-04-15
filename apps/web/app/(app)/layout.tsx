@@ -45,7 +45,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <AddMealDrawer
           open={addMealDrawerOpen}
           onOpenChange={setAddMealDrawerOpen}
-          selectedDate={formatDate(new Date())}
         />
       )}
       <Toaster position="top-center" richColors />

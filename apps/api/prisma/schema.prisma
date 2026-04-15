@@ -8,11 +8,14 @@ datasource db {
 }
 
 model User {
-  id           BigInt   @id @default(autoincrement())
-  email        String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                      BigInt    @id @default(autoincrement())
+  email                   String    @unique
+  passwordHash            String
+  emailVerified           Boolean   @default(true)
+  verificationToken       String?   @unique
+  verificationTokenExpiry DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   profiles Profile[]
 }
@@ -22,13 +25,16 @@ model Profile {
   userId    BigInt
   name      String
   goal      String?
+  age       Int?
+  height    Int?
   avatarUrl String?
   createdAt DateTime @default(now())
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  meals     Meal[]
-  favorites Favorite[]
-  recipes   Recipe[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meals         Meal[]
+  favorites     Favorite[]
+  recipes       Recipe[]
+  weightRecords WeightRecord[]
 
   @@index([userId])
 }
@@ -73,7 +79,7 @@ model Recipe {
   steps       Json
   timeMinutes Int?
   calories    Int?
-  imageUrl    String?   @db.LongText
+  imageUrl    String?  @db.LongText
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -94,4 +100,17 @@ model Favorite {
 
   @@id([profileId, recipeId])
   @@index([recipeId])
+}
+
+model WeightRecord {
+  id        BigInt   @id @default(autoincrement())
+  profileId BigInt
+  date      String
+  weight    Decimal  @db.Decimal(5, 2)
+  createdAt DateTime @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, date])
+  @@index([profileId])
 }
